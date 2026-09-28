@@ -1,0 +1,28 @@
+{
+  "name": "ipad-dictation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "dev": "npm run prepare:assets && vite",
+    "build": "npm run prepare:assets && vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "playwright test",
+    "format:check": "prettier --check index.html src scripts tests *.js package.json README.md docs",
+    "test:deploy": "node scripts/check-deployment.mjs"
+  },
+  "dependencies": {
+    "papaparse": "^5.5.3",
+    "pdfjs-dist": "6.3.289"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "prettier": "^3.6.2",
+    "vite": "8.3.1"
+  }
+}
