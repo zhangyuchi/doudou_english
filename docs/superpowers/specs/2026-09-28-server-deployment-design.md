@@ -17,6 +17,8 @@ E-4：src/import.js、src/app.js 和 README.md 是导入行为的证据：PDF/TX
 
 非目标：自动安装或管理 Web 服务、自动修改防火墙/DNS/证书、实际生产发布、自动删除历史版本、云语音、GitHub Actions、Docker 和浏览器导入功能变更。
 
+补充确认：用户提出使用 Python 内置 Web 服务。文档将增加 Python 3.9+ 的 http.server 作为可信内网或临时试用方案，不要求安装 Nginx/Caddy。Python 官方明确不推荐 http.server 用于生产环境（https://docs.python.org/3/library/http.server.html）；公网正式服务仍推荐专门的静态 Web 服务。示例只提供 current 目录，不能提供仓库或部署根目录；监听地址与防火墙范围需明确。不会因为使用 Python 而改变发布脚本或生成额外 Python 服务程序。
+
 ## 工作模型、依赖与约束
 
 家长/维护者在 Linux 或 macOS 电脑发布，学生用 iPad 浏览网站。电脑已有项目要求的 Node.js >=22.13、npm，以及 ssh、tar；首次运行 npm ci。远端假设有 Bash、GNU coreutils（含 mv -T）、tar、gzip；Web 服务能读取部署文件及跟随 current 链接。Windows 用户可使用 WSL，原生 PowerShell 不属于本脚本承诺范围。
@@ -78,7 +80,7 @@ AA-RUNTIME：本地构建和 SSH 子进程必须检查退出码；远端单次�
 
 ## 文档内容地图与验收边界
 
-README 保留最短入口，链接服务器部署与词表导入两份中文指南。部署指南覆盖本地/远端前置条件、专用目录授权、SSH 配置、首次发布、更新、list、回滚、Nginx/Caddy 根路径配置、子路径注意事项、HTTPS、缓存及旧标签页资源不匹配、权限/SSH/锁故障排查。Web 服务配置只提供示例，不自动执行管理员操作。
+README 保留最短入口，链接服务器部署与词表导入两份中文指南。部署指南覆盖本地/远端前置条件、专用目录授权、SSH 配置、首次发布、更新、list、回滚、Python 内置 HTTP 服务的内网试用命令、Nginx/Caddy 根路径配置、子路径注意事项、HTTPS、缓存及旧标签页资源不匹配、权限/SSH/锁故障排查。Web 服务配置只提供示例，不自动执行管理员操作。
 
 导入指南覆盖在 iPad 点击“导入”与“选取文件”、PDF/TXT/CSV 格式及 UTF-8、短语与可选中文、实际 Tab 和空行、CSV 组号及引号、预览编辑/分组、确认与取消、返回内置词表、文件与页数/项数限制、扫描 PDF/OCR、浏览器保存与错词清空警告。提供可下载的 TXT/CSV 样例，测试解析结果。
 
