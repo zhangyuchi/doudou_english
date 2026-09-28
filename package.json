@@ -11,10 +11,12 @@
     "dev": "npm run prepare:assets && vite",
     "build": "npm run prepare:assets && vite build",
     "preview": "vite preview",
+    "deploy": "node scripts/deploy.mjs",
     "test": "node --test tests/*.test.js",
     "test:browser": "playwright test",
-    "format:check": "prettier --check index.html src scripts tests *.js package.json README.md docs",
-    "test:deploy": "node scripts/check-deployment.mjs"
+    "format:check": "prettier --check index.html src scripts tests *.js package.json deploy.config.example.json README.md docs",
+    "test:deploy": "node scripts/check-deployment.mjs",
+    "test:deploy:python": "node scripts/check-python-deployment.mjs"
   },
   "dependencies": {
     "papaparse": "^5.5.3",

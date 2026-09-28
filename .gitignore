@@ -3,3 +3,8 @@ dist/
 public/pdfjs/
 test-results/
 playwright-report/
+deploy.config.json
+deploy.config.local*.json
+.env
+.env.*
+!.env.example

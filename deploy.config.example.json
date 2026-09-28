@@ -1,0 +1,6 @@
+{
+  "host": "your-server.example.com",
+  "user": "deploy",
+  "port": 22,
+  "remoteDir": "/srv/doudou-english"
+}

@@ -1,0 +1,12 @@
+# Edit domain and root. Public HTTPS requires DNS and reachable ports 80/443.
+english.example.com {
+    root * /srv/doudou-english/current
+    header Cache-Control "no-cache"
+    @scripts path *.js *.mjs
+    header @scripts Content-Type "application/javascript"
+    @wasm path *.wasm
+    header @wasm Content-Type "application/wasm"
+    file_server {
+        hide .release-complete
+    }
+}

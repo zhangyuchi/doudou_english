@@ -1,7 +1,7 @@
 # 自有 Linux 服务器部署设计
 
-Task Mode: design-build。Outcome Status: draft。日期：2026-09-28。
-负责人：项目维护者与 Codex。用户已确认总体方案；本文是实现前待复核的详细边界，不代表脚本已经存在。
+Task Mode: design-build。Outcome Status: complete（脚本、文档与本地模拟验证，不含实际服务器部署）。日期：2026-09-28。
+负责人：项目维护者与 Codex。用户已在对话中确认本文（含 Python 内网选项），实现边界已批准；脚本与本地验证已完成。
 
 ## 证据、目标与范围
 
@@ -88,10 +88,10 @@ README 保留最短入口，链接服务器部署与词表导入两份中文指�
 
 ## 账本、风险与完成条件
 
-Issues List：无 open issue。Blocks List：无 open block；详细设计等待用户复核，代码尚未开始。
+Issues List：ISSUE-DEP-1 resolved（实施复核，LC-4/DC-DEP-2/CHG-DEP-2/V-DEP-2）：GNU ln 的临时链接目标若已是指向目录的链接，默认会跟随并向管理范围外写链接；scripts/deploy-remote.sh 改为 ln -sT，且只有成功创建的临时链接归 cleanup 所有。独立临时目录测试先重现失败，再验证修复后拒绝冲突、保留原路径/current、外部目录不被写入。第一次测试遗留的特定 /tmp/new 链接已核验目标后清理；测试现已完全隔离到自建临时目录。无 open issue。Blocks List：无 open block。
 
-Accepted Risks：进程 SIGKILL 或主机崩溃可能遗留锁或半成品版本，采用文档化人工恢复；版本全部保留会消耗磁盘；旧页面可能引用新版本不再包含的资源，更新后刷新页面；符号链接 rename 的原子性承诺限于普通 Linux 同一文件系统目录，不承诺网络文件系统或主机掉电后的持久性。维护者负责实际服务器权限及 HTTP 验证。
+Accepted Risks：进程 SIGKILL 或主机崩溃可能遗留锁或半成品版本，采用文档化人工恢复；版本全部保留会消耗磁盘；旧页面可能引用新版本不再包含的资源，更新后刷新页面；符号链接 rename 的原子性承诺限于普通 Linux 同一文件系统目录，不承诺网络文件系统或主机掉电后的持久性。同一电脑项目目录的构建不支持并行发布/测试，部署指南与 README 明确要求串行；远端锁只保护服务器操作。维护者负责实际服务器权限及 HTTP 验证。
 
 Follow-ups：自动清理、自动 HTTPS 配置、生产健康检查与 CI/CD 留给明确的新需求。Plan B：仍可按现有 README 手动上传完整 dist 到独立站点目录，不能混用手动发布目录与本脚本管理目录。
 
-最终完成要求：DC-DEP-1—4 → CHG-DEP-1—3 → V-DEP-1—4 全部有实际证据，无 open issue/block；明确区分本地模拟验证与未执行的真实服务器部署。
+最终追踪：DC-DEP-1—4 → CHG-DEP-1—3 → V-DEP-1—4 全部有本地实际证据，无 open issue/block。完整命令与限制见 [部署验证记录](../../deployment-verification.md)，不声称完成真实服务器部署或独立代码评审。

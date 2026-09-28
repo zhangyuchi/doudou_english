@@ -19,6 +19,19 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ## 部署到静态网站
 
+自有 Linux 服务器可以使用项目的 SSH 发布脚本：
+
+```bash
+cp deploy.config.example.json deploy.config.json
+# 编辑 deploy.config.json，填写自己的服务器与应用专用目录
+npm run deploy -- --dry-run
+npm run deploy
+```
+
+支持版本列表与回滚，不绑定 Nginx；Python 内网试用、Nginx/Caddy 配置、权限和失败恢复见[服务器部署指南](docs/deployment.md)。服务器前置准备需先按指南完成。脚本不会自动安装 Web 服务。
+
+手动部署仍可使用：
+
 ```bash
 npm run build
 ```
@@ -34,6 +47,8 @@ npm run preview -- --host 0.0.0.0 --port 5173
 iPad 同样访问电脑的 `http://电脑局域网地址:5173/`。正式网站部署后访问正式网址，不依赖电脑保持运行。第一版不提供离线缓存；不要直接在“文件”应用中打开 index.html，需通过网页地址访问。
 
 ## 导入自己的词表
+
+iPad 操作步骤、PDF 支持范围、UTF-8 TXT/CSV 示例、分组和保存注意事项见[单词文件导入指南](docs/word-list-import.md)。可直接参考 [TXT 样例](public/examples/words.txt)与 [CSV 样例](public/examples/words.csv)。
 
 点击“导入”，选择文件，核对可编辑预览后点击“确认使用词表”。解析失败或取消时，当前词表保持不变。确认导入会替换当前词表，并清空上一份词表的错词记录；页面有明确提示。
 
@@ -81,9 +96,12 @@ npx playwright install chromium webkit
 npm run test:browser
 npm run build
 npm run test:deploy
+npm run test:deploy:python
 npm run format:check
 ```
 
 Linux 上 Playwright 的 WebKit 还需要系统依赖，按 `npx playwright install-deps webkit` 的指引准备。仅跑 Chromium 可使用 `npm run test:browser -- --project=chromium-ipad`。测试环境也可通过 `IPAD_WEBKIT_EXECUTABLE` 指定兼容的 WebKit 启动程序。
+
+test:deploy:python 额外需要 Python 3.9+，验证内置 HTTP 服务、真实 PDF 导入和 current 切换；不使用 Python 托管时可跳过此项。部署脚本测试包含实际本地构建和 Bash 临时目录验证，执行 npm test 时不要同时发布或运行其他构建。
 
 浏览器测试在 iPad 尺寸下使用可控语音模拟，验证页面、取消、保存和实际 PDF 解析；不能代替真实 iPad 的声音质量与后台行为测试。实现和验证边界见 [设计说明](docs/design-contracts.md) 与 [验证记录](docs/verification.md)。

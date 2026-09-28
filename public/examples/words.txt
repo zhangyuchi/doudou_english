@@ -1,0 +1,4 @@
+hello	你好
+primary school	小学
+
+point out	指出

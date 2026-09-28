@@ -9,6 +9,25 @@ import {
   toEditable,
 } from "../src/import.js";
 
+test("downloadable TXT and CSV examples preserve phrases and two groups", async () => {
+  for (const [name, parse] of [
+    ["words.txt", parseEditable],
+    ["words.csv", parseCsv],
+  ]) {
+    const text = await readFile(
+      new URL(`../public/examples/${name}`, import.meta.url),
+      "utf8",
+    );
+    const groups = parse(text);
+    assert.deepEqual(
+      groups.map((g) => g.items.length),
+      [2, 1],
+    );
+    assert.equal(groups[0].items[1].english, "primary school");
+    assert.equal(groups[1].items[0].english, "point out");
+  }
+});
+
 test("the real vocabulary PDF retains 11 groups, 161 items and whole phrases", async () => {
   const data = new Uint8Array(
     await readFile(
