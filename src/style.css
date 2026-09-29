@@ -808,3 +808,13 @@ textarea {
     transition: none !important;
   }
 }
+
+footer {
+  text-align: center;
+  color: var(--muted);
+  padding: 1rem;
+  font-size: 0.8rem;
+}
+footer a {
+  color: inherit;
+}

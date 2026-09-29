@@ -152,7 +152,7 @@ sudo systemctl reload caddy
 curl -I http://127.0.0.1:8080/
 ```
 
-预期 HTTP 200。页面应显示内置 11 组、161 项。试导入 [words.csv](../public/examples/words.csv)，预览应为两组、三项；再试文字 PDF。英音仍使用 Safari 实际提供的声音，部署不会把 Daniel 升级到高质量版。
+预期 HTTP 200。页面应显示内置 11 组、161 项。试导入 [words.csv](../public/examples/words.csv)，预览应为两组、三项；再试文字 PDF。默认英音文件包含在 `dist/audio/`，不依赖 Safari 暴露的系统声音；请保留整个 dist 内容，并点击试听及开始听写确认资源正常。
 
 在电脑列出远端版本（只读，不构建或上传）：
 

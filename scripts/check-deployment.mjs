@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+import { checkAudio } from "./check-audio.mjs";
 
 // Serve only the built artifact under a non-root prefix to catch deployment path mistakes.
 const root = resolve("dist");
@@ -52,6 +53,7 @@ try {
     await page.locator("#source-summary").textContent(),
     "11 组 · 161 个听写项",
   );
+  await checkAudio(page);
   await page.locator("#import-open").click();
   await page
     .locator("#word-file")
@@ -65,7 +67,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "Built dist works under /practice/: app, PDF import, worker and assets load successfully.",
+    "Built dist works under /practice/: 161 decoded audio files, real playback, app, PDF import, worker and assets load successfully.",
   );
 } finally {
   await browser?.close();

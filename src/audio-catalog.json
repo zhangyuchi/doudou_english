@@ -1,0 +1,646 @@
+[
+  {
+    "english": "absent",
+    "file": "absent.wav"
+  },
+  {
+    "english": "across",
+    "file": "across.wav"
+  },
+  {
+    "english": "actress",
+    "file": "actress.wav"
+  },
+  {
+    "english": "advice",
+    "file": "advice.wav"
+  },
+  {
+    "english": "against the law",
+    "file": "against-the-law.wav"
+  },
+  {
+    "english": "almost",
+    "file": "almost.wav"
+  },
+  {
+    "english": "along",
+    "file": "along.wav"
+  },
+  {
+    "english": "appear",
+    "file": "appear.wav"
+  },
+  {
+    "english": "area",
+    "file": "area.wav"
+  },
+  {
+    "english": "awake",
+    "file": "awake.wav"
+  },
+  {
+    "english": "balloon",
+    "file": "balloon.wav"
+  },
+  {
+    "english": "band",
+    "file": "band.wav"
+  },
+  {
+    "english": "break",
+    "file": "break.wav"
+  },
+  {
+    "english": "bright",
+    "file": "bright.wav"
+  },
+  {
+    "english": "care",
+    "file": "care.wav"
+  },
+  {
+    "english": "carry",
+    "file": "carry.wav"
+  },
+  {
+    "english": "celebrate",
+    "file": "celebrate.wav"
+  },
+  {
+    "english": "challenge",
+    "file": "challenge.wav"
+  },
+  {
+    "english": "change",
+    "file": "change.wav"
+  },
+  {
+    "english": "Christmas",
+    "file": "christmas.wav"
+  },
+  {
+    "english": "classmate",
+    "file": "classmate.wav"
+  },
+  {
+    "english": "club",
+    "file": "club.wav"
+  },
+  {
+    "english": "cucumber",
+    "file": "cucumber.wav"
+  },
+  {
+    "english": "decide",
+    "file": "decide.wav"
+  },
+  {
+    "english": "decision",
+    "file": "decision.wav"
+  },
+  {
+    "english": "different",
+    "file": "different.wav"
+  },
+  {
+    "english": "disease",
+    "file": "disease.wav"
+  },
+  {
+    "english": "dish",
+    "file": "dish.wav"
+  },
+  {
+    "english": "dumpling",
+    "file": "dumpling.wav"
+  },
+  {
+    "english": "duty",
+    "file": "duty.wav"
+  },
+  {
+    "english": "electric",
+    "file": "electric.wav"
+  },
+  {
+    "english": "emergency",
+    "file": "emergency.wav"
+  },
+  {
+    "english": "ending",
+    "file": "ending.wav"
+  },
+  {
+    "english": "enjoy",
+    "file": "enjoy.wav"
+  },
+  {
+    "english": "everybody",
+    "file": "everybody.wav"
+  },
+  {
+    "english": "fact",
+    "file": "fact.wav"
+  },
+  {
+    "english": "festival",
+    "file": "festival.wav"
+  },
+  {
+    "english": "fill",
+    "file": "fill.wav"
+  },
+  {
+    "english": "firework",
+    "file": "firework.wav"
+  },
+  {
+    "english": "follow",
+    "file": "follow.wav"
+  },
+  {
+    "english": "ground",
+    "file": "ground.wav"
+  },
+  {
+    "english": "growth",
+    "file": "growth.wav"
+  },
+  {
+    "english": "guitar",
+    "file": "guitar.wav"
+  },
+  {
+    "english": "handsome",
+    "file": "handsome.wav"
+  },
+  {
+    "english": "hang",
+    "file": "hang.wav"
+  },
+  {
+    "english": "heart",
+    "file": "heart.wav"
+  },
+  {
+    "english": "hide",
+    "file": "hide.wav"
+  },
+  {
+    "english": "high",
+    "file": "high.wav"
+  },
+  {
+    "english": "hit",
+    "file": "hit.wav"
+  },
+  {
+    "english": "hold",
+    "file": "hold.wav"
+  },
+  {
+    "english": "homework",
+    "file": "homework.wav"
+  },
+  {
+    "english": "hope",
+    "file": "hope.wav"
+  },
+  {
+    "english": "hug",
+    "file": "hug.wav"
+  },
+  {
+    "english": "important",
+    "file": "important.wav"
+  },
+  {
+    "english": "in fact",
+    "file": "in-fact.wav"
+  },
+  {
+    "english": "instrument",
+    "file": "instrument.wav"
+  },
+  {
+    "english": "joke",
+    "file": "joke.wav"
+  },
+  {
+    "english": "journey",
+    "file": "journey.wav"
+  },
+  {
+    "english": "joy",
+    "file": "joy.wav"
+  },
+  {
+    "english": "knife",
+    "file": "knife.wav"
+  },
+  {
+    "english": "lantern",
+    "file": "lantern.wav"
+  },
+  {
+    "english": "laugh",
+    "file": "laugh.wav"
+  },
+  {
+    "english": "law",
+    "file": "law.wav"
+  },
+  {
+    "english": "leave",
+    "file": "leave.wav"
+  },
+  {
+    "english": "life",
+    "file": "life.wav"
+  },
+  {
+    "english": "lonely",
+    "file": "lonely.wav"
+  },
+  {
+    "english": "magic",
+    "file": "magic.wav"
+  },
+  {
+    "english": "marry",
+    "file": "marry.wav"
+  },
+  {
+    "english": "matter",
+    "file": "matter.wav"
+  },
+  {
+    "english": "meal",
+    "file": "meal.wav"
+  },
+  {
+    "english": "meaning",
+    "file": "meaning.wav"
+  },
+  {
+    "english": "medical",
+    "file": "medical.wav"
+  },
+  {
+    "english": "memory",
+    "file": "memory.wav"
+  },
+  {
+    "english": "midnight",
+    "file": "midnight.wav"
+  },
+  {
+    "english": "mind",
+    "file": "mind.wav"
+  },
+  {
+    "english": "miss",
+    "file": "miss.wav"
+  },
+  {
+    "english": "mistake",
+    "file": "mistake.wav"
+  },
+  {
+    "english": "mountain",
+    "file": "mountain.wav"
+  },
+  {
+    "english": "nature",
+    "file": "nature.wav"
+  },
+  {
+    "english": "nod",
+    "file": "nod.wav"
+  },
+  {
+    "english": "notebook",
+    "file": "notebook.wav"
+  },
+  {
+    "english": "paper-cutting",
+    "file": "paper-cutting.wav"
+  },
+  {
+    "english": "patient",
+    "file": "patient.wav"
+  },
+  {
+    "english": "pick",
+    "file": "pick.wav"
+  },
+  {
+    "english": "pick up",
+    "file": "pick-up.wav"
+  },
+  {
+    "english": "piece",
+    "file": "piece.wav"
+  },
+  {
+    "english": "plan",
+    "file": "plan.wav"
+  },
+  {
+    "english": "plastic",
+    "file": "plastic.wav"
+  },
+  {
+    "english": "point out",
+    "file": "point-out.wav"
+  },
+  {
+    "english": "polite",
+    "file": "polite.wav"
+  },
+  {
+    "english": "pollution",
+    "file": "pollution.wav"
+  },
+  {
+    "english": "pool",
+    "file": "pool.wav"
+  },
+  {
+    "english": "pork",
+    "file": "pork.wav"
+  },
+  {
+    "english": "position",
+    "file": "position.wav"
+  },
+  {
+    "english": "postman",
+    "file": "postman.wav"
+  },
+  {
+    "english": "power",
+    "file": "power.wav"
+  },
+  {
+    "english": "practice",
+    "file": "practice.wav"
+  },
+  {
+    "english": "primary",
+    "file": "primary.wav"
+  },
+  {
+    "english": "primary school",
+    "file": "primary-school.wav"
+  },
+  {
+    "english": "problem",
+    "file": "problem.wav"
+  },
+  {
+    "english": "project",
+    "file": "project.wav"
+  },
+  {
+    "english": "protect",
+    "file": "protect.wav"
+  },
+  {
+    "english": "pull",
+    "file": "pull.wav"
+  },
+  {
+    "english": "queen",
+    "file": "queen.wav"
+  },
+  {
+    "english": "race",
+    "file": "race.wav"
+  },
+  {
+    "english": "realise",
+    "file": "realise.wav"
+  },
+  {
+    "english": "really",
+    "file": "really.wav"
+  },
+  {
+    "english": "refuse",
+    "file": "refuse.wav"
+  },
+  {
+    "english": "regret",
+    "file": "regret.wav"
+  },
+  {
+    "english": "remember",
+    "file": "remember.wav"
+  },
+  {
+    "english": "result",
+    "file": "result.wav"
+  },
+  {
+    "english": "reunion",
+    "file": "reunion.wav"
+  },
+  {
+    "english": "road",
+    "file": "road.wav"
+  },
+  {
+    "english": "rock",
+    "file": "rock.wav"
+  },
+  {
+    "english": "round",
+    "file": "round.wav"
+  },
+  {
+    "english": "rush",
+    "file": "rush.wav"
+  },
+  {
+    "english": "sail",
+    "file": "sail.wav"
+  },
+  {
+    "english": "seldom",
+    "file": "seldom.wav"
+  },
+  {
+    "english": "sentence",
+    "file": "sentence.wav"
+  },
+  {
+    "english": "serious",
+    "file": "serious.wav"
+  },
+  {
+    "english": "serve",
+    "file": "serve.wav"
+  },
+  {
+    "english": "shake",
+    "file": "shake.wav"
+  },
+  {
+    "english": "shape",
+    "file": "shape.wav"
+  },
+  {
+    "english": "shelf",
+    "file": "shelf.wav"
+  },
+  {
+    "english": "shine",
+    "file": "shine.wav"
+  },
+  {
+    "english": "shocked",
+    "file": "shocked.wav"
+  },
+  {
+    "english": "silent",
+    "file": "silent.wav"
+  },
+  {
+    "english": "situation",
+    "file": "situation.wav"
+  },
+  {
+    "english": "skate",
+    "file": "skate.wav"
+  },
+  {
+    "english": "smell",
+    "file": "smell.wav"
+  },
+  {
+    "english": "smile",
+    "file": "smile.wav"
+  },
+  {
+    "english": "something",
+    "file": "something.wav"
+  },
+  {
+    "english": "sound",
+    "file": "sound.wav"
+  },
+  {
+    "english": "stage",
+    "file": "stage.wav"
+  },
+  {
+    "english": "stay",
+    "file": "stay.wav"
+  },
+  {
+    "english": "storm",
+    "file": "storm.wav"
+  },
+  {
+    "english": "strict",
+    "file": "strict.wav"
+  },
+  {
+    "english": "suddenly",
+    "file": "suddenly.wav"
+  },
+  {
+    "english": "support",
+    "file": "support.wav"
+  },
+  {
+    "english": "task",
+    "file": "task.wav"
+  },
+  {
+    "english": "tear",
+    "file": "tear.wav"
+  },
+  {
+    "english": "thirsty",
+    "file": "thirsty.wav"
+  },
+  {
+    "english": "thought",
+    "file": "thought.wav"
+  },
+  {
+    "english": "through",
+    "file": "through.wav"
+  },
+  {
+    "english": "throw",
+    "file": "throw.wav"
+  },
+  {
+    "english": "throw away",
+    "file": "throw-away.wav"
+  },
+  {
+    "english": "touching",
+    "file": "touching.wav"
+  },
+  {
+    "english": "towards",
+    "file": "towards.wav"
+  },
+  {
+    "english": "traditional",
+    "file": "traditional.wav"
+  },
+  {
+    "english": "trailer",
+    "file": "trailer.wav"
+  },
+  {
+    "english": "treat",
+    "file": "treat.wav"
+  },
+  {
+    "english": "university",
+    "file": "university.wav"
+  },
+  {
+    "english": "unusual",
+    "file": "unusual.wav"
+  },
+  {
+    "english": "usually",
+    "file": "usually.wav"
+  },
+  {
+    "english": "volleyball",
+    "file": "volleyball.wav"
+  },
+  {
+    "english": "waste",
+    "file": "waste.wav"
+  },
+  {
+    "english": "weak",
+    "file": "weak.wav"
+  },
+  {
+    "english": "whole",
+    "file": "whole.wav"
+  },
+  {
+    "english": "wide",
+    "file": "wide.wav"
+  },
+  {
+    "english": "wind",
+    "file": "wind.wav"
+  },
+  {
+    "english": "without",
+    "file": "without.wav"
+  }
+]

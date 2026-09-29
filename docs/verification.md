@@ -1,5 +1,17 @@
 # 验证记录
 
+## 2026-09-29 预置英音改造
+
+本次工作区验证：`npm test` 44 项通过；`npm run test:browser -- --project=chromium-ipad` 8 项通过；`npm run build`、`npm run test:deploy`、`npm run test:deploy:python`、`npm run format:check`、`git diff --check` 通过。
+
+- 全部 161 项覆盖、来源字段、文件 SHA256、PCM WAV 结构和非静音信号通过检查，总音频 5,516,426 字节。当前为 4 项真人录音、157 项 Piper Cori high 合成；下载限流的候选文件未计入交付。
+- 浏览器使用真实 Web Audio 连续播放预置音频，验证没有 `speechSynthesis` 也能从第一项推进到第二项；备用系统声音仍使用可控模拟。
+- `/practice/` 子路径与真实 Python HTTP 服务分别解码全部 161 个文件，执行试听及正式播放，并保留 PDF.js 真实导入、原子版本切换验证。
+- 可控时钟及音频驱动覆盖取消后迟到完成、加载/解码取消、启动失败清理、重复与书写间隔、暂停续播、试听不替换队列/设置、缺词整组禁止启动、声音刷新保留暂停。
+- 本次未安装/运行 WebKit，也没有实体 iPad/Android 听感、锁屏或后台音频解锁验收；可解码与推进不证明教学发音完全正确，不声称兼容全部历史 OS。
+
+以下为第一版历史验证记录，不能当作本次 WebKit/实体设备验证。
+
 日期：2026-09-28。代码质量模式：Implementation mode，完成时对全部新增代码、测试、依赖、样例、构建脚本和文档做本地复核。没有既有代码、Git 工作区或独立评审者；不声称经过独立代码评审。
 
 ## 已运行

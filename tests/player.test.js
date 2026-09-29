@@ -168,3 +168,109 @@ test("a silent speech-engine failure surfaces without advancing", () => {
   assert.equal(f.player.state.index, 0);
   assert.equal(f.spoken.length, 1);
 });
+
+function audioFixture(repeat = 1) {
+  const f = fixture(repeat);
+  const clips = [];
+  let cancelled = 0;
+  f.player.audio = {
+    canPlay: (item) => item.english !== "unknown",
+    play: (item, callbacks) => clips.push({ item, ...callbacks }),
+    cancel: () => cancelled++,
+    unlock() {},
+  };
+  f.player.configure({ voice: { lang: "en-GB", recorded: true } });
+  return { ...f, clips, cancelled: () => cancelled };
+}
+
+test("bundled audio works without an operating-system speech engine and waits for real completion", () => {
+  const f = audioFixture(2);
+  f.player.synth = null;
+  f.player.start();
+  assert.equal(f.clips.length, 1);
+  assert.equal(f.spoken.length, 0);
+  f.advance(2000);
+  assert.equal(f.player.state.phase, "speaking");
+  f.clips[0].onend();
+  assert.equal(f.player.state.phase, "repeat-gap");
+  f.advance(1000);
+  assert.equal(f.clips.length, 2);
+  f.clips[1].onend();
+  assert.equal(f.player.state.phase, "writing-gap");
+  f.advance(9999);
+  assert.equal(f.player.state.index, 0);
+  f.advance(1);
+  assert.equal(f.clips[2].item.english, "point out");
+});
+
+test("cancelled audio callbacks and playback failures cannot advance or switch to system speech", () => {
+  const f = audioFixture();
+  f.player.start();
+  assert.equal(f.clips.length, 1);
+  const old = f.clips[0];
+  f.player.replay();
+  old.onend();
+  assert.equal(f.player.state.phase, "speaking");
+  f.clips[1].onerror(new Error("404"));
+  assert.equal(f.player.state.phase, "error");
+  f.advance(30000);
+  assert.equal(f.player.state.index, 0);
+  assert.equal(f.spoken.length, 0);
+  assert.ok(f.cancelled() > 0);
+});
+
+test("audio preview preserves the selected queue, position and dictation settings", () => {
+  const f = audioFixture(3);
+  f.player.move(1);
+  assert.equal(typeof f.player.preview, "function");
+  f.player.preview({ english: "guitar" });
+  assert.equal(f.clips[0].item.english, "guitar");
+  f.clips[0].onend();
+  assert.equal(f.player.state.phase, "idle");
+  assert.equal(f.player.state.index, 1);
+  assert.equal(f.player.settings.repeat, 3);
+  assert.equal(f.player.settings.interval, 10);
+  f.player.start();
+  assert.equal(f.clips[1].item.english, "point out");
+  f.clips[1].onend();
+  assert.equal(f.player.state.phase, "repeat-gap");
+});
+
+test("starting during an audio preview cancels it and begins the selected dictation item", () => {
+  const f = audioFixture();
+  assert.equal(typeof f.player.preview, "function");
+  f.player.preview({ english: "guitar" });
+  const old = f.clips[0];
+  f.player.start();
+  old.onend();
+  assert.equal(f.clips[1].item.english, "hello");
+  assert.equal(f.player.state.phase, "speaking");
+});
+
+test("a missing bundled clip blocks the whole session before playing any item", () => {
+  const f = audioFixture();
+  f.player.setQueue([{ english: "hello" }, { english: "unknown" }]);
+  f.player.start();
+  assert.equal(f.player.state.phase, "error");
+  assert.match(f.player.state.error, /预置英音/);
+  assert.equal(f.clips.length, 0);
+  assert.equal(f.spoken.length, 0);
+});
+
+test("preview is unavailable while a countdown is paused and cannot discard its remaining time", () => {
+  const f = audioFixture();
+  f.player.start();
+  f.clips[0].onend();
+  f.advance(3000);
+  f.player.pause();
+  f.player.preview({ english: "guitar" });
+  assert.equal(f.clips.length, 1);
+  assert.equal(f.player.state.phase, "paused");
+  assert.equal(f.player.state.remaining, 7000);
+  f.advance(5000);
+  f.player.resume();
+  f.advance(6999);
+  assert.equal(f.clips.length, 1);
+  f.advance(1);
+  assert.equal(f.clips.length, 2);
+});

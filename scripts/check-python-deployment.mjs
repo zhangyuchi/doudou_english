@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { once } from "node:events";
 import assert from "node:assert/strict";
+import { checkAudio } from "./check-audio.mjs";
 import { chromium } from "@playwright/test";
 
 // Test a real Python http.server against the built artifact and an atomically switched current.
@@ -84,6 +85,7 @@ try {
     await page.locator("#source-summary").textContent(),
     "11 组 · 161 个听写项",
   );
+  await checkAudio(page);
   await page.locator("#import-open").click();
   await page
     .locator("#word-file")
@@ -107,7 +109,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "Python HTTP serving: real PDF/worker import and current switching without restart passed.",
+    "Python HTTP serving: 161 decoded audio files, real playback, PDF/worker import and current switching without restart passed.",
   );
 } finally {
   await browser?.close();

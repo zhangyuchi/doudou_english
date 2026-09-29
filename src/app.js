@@ -1,6 +1,8 @@
 import "./style.css";
 import { builtinSource } from "./words.js";
 import { DictationPlayer, isBritish } from "./player.js";
+import { BundledAudio, bundledVoice } from "./audio.js";
+import audioCatalog from "./audio-catalog.json";
 import {
   parseFile,
   parseEditable,
@@ -23,12 +25,17 @@ let protectedStorage = loaded.protected;
 let groupIndex = 0,
   mode = "review",
   wrongMode = false,
-  voices = [],
+  voices = [bundledVoice],
   importGeneration = 0;
 let queue = [];
 const running = (state) =>
   ["speaking", "repeat-gap", "writing-gap"].includes(state.phase);
+const audio = new BundledAudio({
+  catalog: audioCatalog,
+  baseURL: new URL(`${import.meta.env.BASE_URL}audio/`, document.baseURI).href,
+});
 const player = new DictationPlayer({
+  audio,
   synth: window.speechSynthesis,
   createUtterance: (text) => new SpeechSynthesisUtterance(text),
   onChange: renderPlayback,
@@ -140,7 +147,7 @@ function renderWords() {
       const content = element("div", undefined, "word-content");
       const english = element("button", item.english, "english-button");
       english.setAttribute("aria-label", `朗读 ${item.english}`);
-      english.disabled = !currentVoice();
+      english.disabled = !canRead(item);
       english.onclick = () => speakOne(item);
       content.append(
         english,
@@ -150,7 +157,7 @@ function renderWords() {
       if (view === "review") {
         const sound = element("button", "♪", "speaker-mark");
         sound.setAttribute("aria-label", `播放 ${item.english}`);
-        sound.disabled = !currentVoice();
+        sound.disabled = !canRead(item);
         sound.onclick = () => speakOne(item);
         row.append(sound);
       } else {
@@ -179,7 +186,8 @@ function renderWords() {
       list.append(row);
     });
   }
-  $("review-start").disabled = !queue.length || !currentVoice();
+  $("review-start").disabled = !queue.length || !canReadQueue();
+  renderVoiceHelp();
   $("wrong-practice").disabled = !snapshot.mistakes.length;
 }
 
@@ -214,29 +222,41 @@ function currentVoice() {
   );
 }
 
-/** Respond to asynchronously loaded OS voices without falling back to another dialect. */
+/** Availability uses the same catalog matching as playback. */
+function canRead(item) {
+  return !!currentVoice() && (!currentVoice().recorded || audio.canPlay(item));
+}
+function canReadQueue() {
+  return queue.every(canRead);
+}
+function renderVoiceHelp() {
+  const covered = queue.filter((item) => audio.canPlay(item)).length;
+  $("voice-help").textContent = currentVoice()?.recorded
+    ? `预置英音覆盖 ${covered} / ${queue.length} 项。${covered < queue.length ? "未收录项可选择系统英音，或补充录音后练习。" : "声音随网站提供，无需下载系统语音。"}`
+    : "正在使用设备的英国英语声音，音质由系统提供；可切回预置英音。";
+}
+
+/** Keep the bundled voice available even when the OS exposes no English voices. */
 function refreshVoices() {
   const previous = currentVoice()?.voiceURI;
-  voices = (window.speechSynthesis?.getVoices() || []).filter(isBritish);
+  voices = [
+    bundledVoice,
+    ...(window.speechSynthesis?.getVoices() || []).filter(isBritish),
+  ];
   $("voice-select").replaceChildren();
   for (const voice of voices) {
-    const option = element("option", `${voice.name} · 英国英语`);
+    const option = element(
+      "option",
+      voice.recorded ? voice.name : `${voice.name} · 系统英音`,
+    );
     option.value = voice.voiceURI;
     $("voice-select").append(option);
   }
-  if (!voices.length) {
-    const option = element("option", "未找到英国英语声音");
-    option.value = "";
-    $("voice-select").append(option);
-  } else $("voice-select").value = currentVoice().voiceURI;
-  $("voice-select").disabled = !voices.length || running(player.state);
-  $("voice-preview").disabled = !voices.length || running(player.state);
-  $("voice-help").textContent = voices.length
-    ? "先试听，选择适合你的英音声音。设备上的声音可能不同。"
-    : "未找到英音。请在 iPad 设置中搜索“朗读”或“语音”，下载英国英语声音，再返回刷新；网页实际可用的声音以此列表为准。";
-  if (previous !== currentVoice()?.voiceURI || !running(player.state))
-    applySettings();
+  $("voice-select").value = currentVoice().voiceURI;
+  // A notification with the same selected voice must preserve a paused countdown.
+  if (previous !== currentVoice().voiceURI) applySettings();
   renderWords();
+  renderPlayback(player.state);
 }
 
 /** Configure all playback paths from the same validated UI settings. */
@@ -256,15 +276,13 @@ function applySettings() {
 
 /** Use the same cancellable player for single-word review and voice previews. */
 function speakOne(item) {
-  player.setQueue([item]);
-  player.configure({ repeat: 1, interval: 1, voice: currentVoice() });
-  player.start();
+  player.preview(item);
 }
 
 /** Present progress without exposing the current English or Chinese in dictation mode. */
 function renderPlayback(state) {
   const active = running(state),
-    available = !!currentVoice(),
+    available = !!currentVoice() && canReadQueue(),
     total = queue.length;
   $("progress-label").textContent = total
     ? `${wrongMode ? "错词练习" : snapshot.source.groups[groupIndex].label} · 第 ${Math.min(state.index + 1, total)} / ${total} 项`
@@ -330,8 +348,9 @@ function renderPlayback(state) {
   document
     .querySelectorAll("[data-interval]")
     .forEach((b) => (b.disabled = active));
-  $("voice-select").disabled = !available || active;
-  $("voice-preview").disabled = !available || active;
+  $("voice-select").disabled = active;
+  $("voice-preview").disabled =
+    !currentVoice() || active || state.phase === "paused";
   if (state.phase === "error" && mode !== "dictation")
     message(state.error, true);
 }
@@ -427,8 +446,7 @@ $("voice-select").onchange = (e) => {
   persist();
   renderWords();
 };
-$("voice-preview").onclick = () =>
-  speakOne({ english: "hello. teacher. guitar. primary school." });
+$("voice-preview").onclick = () => speakOne({ english: "guitar" });
 $("voices-refresh").onclick = refreshVoices;
 window.speechSynthesis?.addEventListener("voiceschanged", refreshVoices);
 $("review-start").onclick = () => {

@@ -47,8 +47,9 @@ test("iPad layout, English voice, hidden answers, pause and selected-item start"
   await expect(page.locator("#source-summary")).toHaveText(
     "11 组 · 161 个听写项",
   );
-  await expect(page.locator("#voice-select option")).toHaveCount(1);
-  await expect(page.locator("#voice-select")).toHaveValue("uk");
+  await expect(page.locator("#voice-select option")).toHaveCount(2);
+  await expect(page.locator("#voice-select")).toHaveValue("bundled-en-GB");
+  await page.locator("#voice-select").selectOption("uk");
   await page.getByRole("button", { name: "② 纸上听写" }).click();
   await expect(page.locator("#repeat-select")).toHaveValue("1");
   await expect(page.locator("#interval-input")).toHaveValue("10");
@@ -139,17 +140,96 @@ test("imported text is safe, mistakes survive refresh and wrong words can be rem
   await expect(page.locator("#item-count")).toHaveText("0 个听写项");
 });
 
-test("missing British voice blocks speech but leaves word review and import usable", async ({
+test("bundled audio plays and advances without any system British voice", async ({
   page,
 }) => {
-  await mockVoices(page, false);
+  await page.addInitScript(() =>
+    Object.defineProperty(window, "speechSynthesis", {
+      value: undefined,
+      configurable: true,
+    }),
+  );
   await page.goto("/");
-  await expect(page.locator("#voice-help")).toContainText("未找到英音");
-  await expect(page.locator("#voice-preview")).toBeDisabled();
+  await expect(page.locator("#voice-select")).toHaveValue("bundled-en-GB");
+  await expect(page.locator("#voice-preview")).toBeEnabled();
+  await page.locator("#voice-preview").click();
+  await expect(page.locator("#playback-title")).toHaveText("听一词，写一词。");
   await page.getByRole("button", { name: "② 纸上听写" }).click();
-  await expect(page.locator("#play-toggle")).toBeDisabled();
+  await page.locator("#interval-input").fill("1");
+  await page.locator("#interval-input").dispatchEvent("change");
+  await page.locator("#play-toggle").click();
+  await expect(page.locator("#progress-label")).toContainText("第 2 / 10 项", {
+    timeout: 15000,
+  });
+  await page.locator("#play-toggle").click();
+  expect(await page.evaluate(() => window.__spoken?.length || 0)).toBe(0);
+});
+
+test("preview preserves selected item and repeat settings, voice refresh preserves pause", async ({
+  page,
+}) => {
+  await mockVoices(page);
+  await page.goto("/");
+  await page.locator("#voice-select").selectOption("uk");
+  await page.getByRole("button", { name: "② 纸上听写" }).click();
+  await page.locator("#repeat-select").selectOption("2");
+  await page.locator("#next").click();
+  await page.locator("#voice-preview").click();
+  await expect(page.locator("#playback-title")).toHaveText("听一词，写一词。");
+  await page.locator("#play-toggle").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__spoken?.at(-1).text))
+    .toBe("sentence");
+  await expect(page.locator("#playback-title")).toHaveText("稍候，再听一遍");
+  await page.locator("#play-toggle").click();
+  await expect(page.locator("#voice-preview")).toBeDisabled();
+  await page.locator("#voices-refresh").click();
+  await expect(page.locator("#playback-title")).toHaveText("已暂停");
+  await page.locator("#play-toggle").click();
+  await expect.poll(() => page.evaluate(() => window.__spoken?.length)).toBe(3);
+});
+
+test("unknown imported audio blocks a session but allows explicit system British speech", async ({
+  page,
+}) => {
+  await mockVoices(page);
+  await page.goto("/");
   await page.locator("#import-open").click();
-  await expect(page.locator("#import-dialog")).toBeVisible();
+  await page
+    .locator("#import-text")
+    .fill("without\t没有\nnew unfamiliar phrase\t新词");
+  await page.locator("#import-confirm").click();
+  await expect(page.locator("#voice-help")).toContainText("1 / 2");
+  await expect(page.locator("#review-start")).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "播放 without", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", {
+      name: "播放 new unfamiliar phrase",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await page.locator("#voice-select").selectOption("uk");
+  await page.locator("#review-start").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__spoken?.at(-1).text))
+    .toBe("without");
+});
+
+test("audio download failure stops without switching voices or advancing", async ({
+  page,
+}) => {
+  await mockVoices(page);
+  await page.route("**/audio/without.wav", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+  await page.goto("/");
+  await page.locator("#review-start").click();
+  await expect(page.locator("#playback-title")).toHaveText("朗读暂时停止");
+  await expect(page.locator("#playback-help")).toContainText("404");
+  await expect(page.locator("#progress-label")).toContainText("第 1 / 10 项");
+  expect(await page.evaluate(() => window.__spoken?.length || 0)).toBe(0);
 });
 
 test("malformed saved data stay intact until explicit recovery", async ({

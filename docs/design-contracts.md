@@ -1,5 +1,7 @@
 # 实现边界与验证映射
 
+> 2026-09-29 更新：英音来源与播放生命周期以 [预置英音设计](superpowers/specs/2026-09-29-bundled-british-audio-design.md) 为准；本文保留第一版设计记录。
+
 Task Mode: design-build。Outcome Status: complete（静态网页实现及桌面验证范围）。日期：2026-09-28。
 
 设计已按对话中的分组、英音、导入、次数和间隔要求确认；本文补充实现约束，由 Codex 维护。项目此前只有设计文档，不是 Git 仓库，未发现 AGENTS.md。实现、测试、运行说明限于 ipad-dictation 目录；原 PDF 保留。
