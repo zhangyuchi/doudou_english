@@ -20,7 +20,9 @@
 
 ## 维护资源
 
-普通 `npm run dev` 和 `npm run build` 只使用已提交的资源，不下载录音或合成新词。
+个人学习的阿里云音频有独立生成脚本和目录，见[阿里云英音使用说明](aliyun-audio.md)。该选项不修改下面的开放音频清单；页面需明确选声，缺词不会混用来源。
+
+普通 `npm run dev` 和 `npm run build` 只使用已准备好的本地资源，不下载录音或合成新词。
 
 准备新文件时，先核对逐文件许可和口音，再在独立目录准备原始音频及 JSON 数组。每项包括 `english`、`rawFile`、目标 `file`、`kind`、`locale`、`sourceURL`、`author`、`license`、`licenseURL`、`accentEvidence`、`accentEvidenceURL`；合成项另有清单中的 `generation` 字段。只录制完整听写项，不拼接多个单词冒充短语。
 

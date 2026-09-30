@@ -7,6 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "audio:aliyun": "node --env-file-if-exists=.env.local scripts/generate-aliyun-audio.mjs",
     "prepare:assets": "node scripts/prepare-assets.mjs",
     "dev": "npm run prepare:assets && vite",
     "build": "npm run prepare:assets && vite build",
@@ -23,6 +24,7 @@
     "pdfjs-dist": "6.3.289"
   },
   "devDependencies": {
+    "@alicloud/pop-core": "^1.8.0",
     "@playwright/test": "1.63.0",
     "prettier": "^3.6.2",
     "vite": "8.3.1"

@@ -8,3 +8,4 @@ deploy.config.local*.json
 .env
 .env.*
 !.env.example
+public/audio/aliyun/

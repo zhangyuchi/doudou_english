@@ -3,6 +3,7 @@ import { builtinSource } from "./words.js";
 import { DictationPlayer, isBritish } from "./player.js";
 import { BundledAudio, bundledVoice } from "./audio.js";
 import audioCatalog from "./audio-catalog.json";
+import { makeAliyunVoice } from "./aliyun-audio.js";
 import {
   parseFile,
   parseEditable,
@@ -30,10 +31,41 @@ let groupIndex = 0,
 let queue = [];
 const running = (state) =>
   ["speaking", "repeat-gap", "writing-gap"].includes(state.phase);
-const audio = new BundledAudio({
+const builtinAudio = new BundledAudio({
   catalog: audioCatalog,
   baseURL: new URL(`${import.meta.env.BASE_URL}audio/`, document.baseURI).href,
 });
+const aliyunManifest = __ALIYUN_AUDIO__;
+const aliyunVoice = aliyunManifest?.entries.length
+  ? makeAliyunVoice(aliyunManifest)
+  : null;
+const aliyunAudio = aliyunVoice
+  ? new BundledAudio({
+      catalog: aliyunManifest.entries,
+      baseURL: new URL(
+        `${import.meta.env.BASE_URL}audio/aliyun/`,
+        document.baseURI,
+      ).href,
+    })
+  : null;
+
+/** Route recorded playback by the explicitly selected voice; a missing item never switches sources. */
+function selectedAudio() {
+  return currentVoice()?.voiceURI === aliyunVoice?.voiceURI && aliyunAudio
+    ? aliyunAudio
+    : builtinAudio;
+}
+
+// DictationPlayer remains the sole lifecycle owner; both drivers are cancelled on every transition.
+const audio = {
+  canPlay: (item) => selectedAudio().canPlay(item),
+  play: (item, callbacks) => selectedAudio().play(item, callbacks),
+  unlock: () => selectedAudio().unlock(),
+  cancel() {
+    builtinAudio.cancel();
+    aliyunAudio?.cancel();
+  },
+};
 const player = new DictationPlayer({
   audio,
   synth: window.speechSynthesis,
@@ -229,10 +261,13 @@ function canRead(item) {
 function canReadQueue() {
   return queue.every(canRead);
 }
+/** Display coverage for the selected local source rather than mixing recordings. */
 function renderVoiceHelp() {
   const covered = queue.filter((item) => audio.canPlay(item)).length;
+  const label =
+    currentVoice()?.voiceURI === "aliyun-en-GB" ? "阿里云英音" : "预置英音";
   $("voice-help").textContent = currentVoice()?.recorded
-    ? `预置英音覆盖 ${covered} / ${queue.length} 项。${covered < queue.length ? "未收录项可选择系统英音，或补充录音后练习。" : "声音随网站提供，无需下载系统语音。"}`
+    ? `${label}覆盖 ${covered} / ${queue.length} 项。${covered < queue.length ? "未收录项可选择其他英音，或补充录音后练习。" : "声音随网站提供，无需下载系统语音。"}`
     : "正在使用设备的英国英语声音，音质由系统提供；可切回预置英音。";
 }
 
@@ -241,6 +276,7 @@ function refreshVoices() {
   const previous = currentVoice()?.voiceURI;
   voices = [
     bundledVoice,
+    ...(aliyunVoice ? [aliyunVoice] : []),
     ...(window.speechSynthesis?.getVoices() || []).filter(isBritish),
   ];
   $("voice-select").replaceChildren();
@@ -350,7 +386,7 @@ function renderPlayback(state) {
     .forEach((b) => (b.disabled = active));
   $("voice-select").disabled = active;
   $("voice-preview").disabled =
-    !currentVoice() || active || state.phase === "paused";
+    !currentVoice() || active || state.phase === "paused" || !previewItem();
   if (state.phase === "error" && mode !== "dictation")
     message(state.error, true);
 }
@@ -446,7 +482,15 @@ $("voice-select").onchange = (e) => {
   persist();
   renderWords();
 };
-$("voice-preview").onclick = () => speakOne({ english: "guitar" });
+/** Prefer the familiar preview; a custom catalog may contain only words from an imported list. */
+function previewItem() {
+  const guitar = { english: "guitar" };
+  return canRead(guitar) ? guitar : queue.find(canRead);
+}
+$("voice-preview").onclick = () => {
+  const item = previewItem();
+  if (item) speakOne(item);
+};
 $("voices-refresh").onclick = refreshVoices;
 window.speechSynthesis?.addEventListener("voiceschanged", refreshVoices);
 $("review-start").onclick = () => {
