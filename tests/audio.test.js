@@ -100,6 +100,87 @@ test("audio unlock happens synchronously before loading, and only actual end com
   );
   assert.equal(f.requests(), 1);
 });
+test("recorded playback selects the media session before unlocking a muted iPad context", async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, "audioSession");
+  const session = { type: "ambient" };
+  Object.defineProperty(navigator, "audioSession", {
+    value: session,
+    configurable: true,
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(navigator, "audioSession", previous);
+    else delete navigator.audioSession;
+  });
+  const f = fixture();
+  let ended = 0;
+  let failure;
+  f.audio.contextFactory = () => {
+    assert.equal(
+      session.type,
+      "playback",
+      "media routing precedes context creation",
+    );
+    return f.context;
+  };
+  f.context.resume = () => {
+    assert.equal(
+      session.type,
+      "playback",
+      "ambient audio is muted on this device",
+    );
+    f.context.state = "running";
+    return Promise.resolve();
+  };
+  const playing = f.audio.play(
+    { english: "primary school" },
+    { onend: () => ended++, onerror: (error) => (failure = error) },
+  );
+  assert.equal(session.type, "playback");
+  assert.equal(f.context.state, "running");
+  await f.finish();
+  await playing;
+  assert.equal(failure, undefined);
+  assert.equal(f.sources[0].started, true);
+  assert.equal(ended, 0);
+  f.sources[0].onended();
+  assert.equal(ended, 1);
+  session.type = "ambient";
+  await f.audio.play(
+    { english: "primary school" },
+    { onend() {}, onerror: assert.fail },
+  );
+  assert.equal(session.type, "playback");
+  assert.equal(f.requests(), 1);
+});
+
+test("a rejected media session reports failure without starting or completing audio", async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, "audioSession");
+  Object.defineProperty(navigator, "audioSession", {
+    value: {
+      set type(value) {
+        assert.equal(value, "playback");
+        throw new Error("media session unavailable");
+      },
+    },
+    configurable: true,
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(navigator, "audioSession", previous);
+    else delete navigator.audioSession;
+  });
+  const f = fixture();
+  let failure;
+  const playing = f.audio.play(
+    { english: "primary school" },
+    { onend: assert.fail, onerror: (error) => (failure = error) },
+  );
+  await f.finish();
+  await playing;
+  assert.match(failure.message, /media session unavailable/);
+  assert.equal(f.audio.context, null);
+  assert.equal(f.requests(), 0);
+  assert.equal(f.sources.length, 0);
+});
 for (const stage of ["fetch", "decode"])
   test(`cancellation during ${stage} cannot produce late audio`, async () => {
     const f = fixture();

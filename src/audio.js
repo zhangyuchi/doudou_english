@@ -42,8 +42,15 @@ export class BundledAudio {
     return this.catalog.has(normalizeWord(item.english));
   }
 
-  // Called before the first await so iPad Safari sees resume within the click gesture.
+  /**
+   * Select media playback routing and resume synchronously within the click gesture.
+   * iPad's default Web Audio session can obey the silent switch; browsers without
+   * Audio Session keep their existing route. Cancellation does not reset this
+   * page-wide policy, since another recorded driver may be about to start.
+   */
   unlock() {
+    const session = globalThis.navigator?.audioSession;
+    if (session) session.type = "playback";
     this.context ||= this.contextFactory();
     return this.context.resume();
   }

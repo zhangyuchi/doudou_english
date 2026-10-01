@@ -174,6 +174,75 @@ test("bundled audio plays and advances without any system British voice", async 
   expect(await page.evaluate(() => window.__spoken?.length || 0)).toBe(0);
 });
 
+test("bundled and Aliyun recordings request media playback before creating an iPad audio context", async ({
+  page,
+}) => {
+  const wav = await readFile("public/audio/guitar.wav");
+  const file = `${"d".repeat(64)}.wav`;
+  await page.route("**/audio/aliyun/manifest.json", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: 1,
+        voice: "emily",
+        speechRate: 0,
+        entries: [
+          {
+            english: "without",
+            file,
+            sha256: "e".repeat(64),
+            bytes: wav.length,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route(`**/audio/aliyun/${file}`, (route) =>
+    route.fulfill({ contentType: "audio/wav", body: wav }),
+  );
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "audioSession", {
+      value: { type: "auto" },
+      configurable: true,
+    });
+    const NativeContext = window.AudioContext;
+    window.__recordedStarts = 0;
+    window.AudioContext = class extends NativeContext {
+      constructor(...args) {
+        if (navigator.audioSession.type !== "playback")
+          throw new Error("The device mutes ambient recorded audio.");
+        super(...args);
+      }
+      createBufferSource(...args) {
+        const source = super.createBufferSource(...args);
+        const start = source.start.bind(source);
+        source.start = (...startArgs) => {
+          window.__recordedStarts++;
+          return start(...startArgs);
+        };
+        return source;
+      }
+    };
+  });
+  await page.goto("/");
+  expect(await page.evaluate(() => navigator.audioSession.type)).toBe("auto");
+  let starts = 0;
+  for (const voice of ["bundled-en-GB", "aliyun-en-GB"]) {
+    await page.locator("#voice-select").selectOption(voice);
+    await page.evaluate(() => (navigator.audioSession.type = "ambient"));
+    await page.locator("#voice-preview").click();
+    await expect
+      .poll(() => page.evaluate(() => window.__recordedStarts))
+      .toBe(++starts);
+    expect(await page.evaluate(() => navigator.audioSession.type)).toBe(
+      "playback",
+    );
+    await expect(page.locator("#playback-title")).toHaveText(
+      "听一词，写一词。",
+    );
+  }
+});
+
 test("preview preserves selected item and repeat settings, voice refresh preserves pause", async ({
   page,
 }) => {

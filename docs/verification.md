@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-10-01 iPad 预置与阿里云录音无声
+
+用户报告本机Chrome可播放，iPad Safari/Chrome只有系统声音有声，预置与阿里云录音都无声。共同组件 `BundledAudio.unlock` 现在在点击同步阶段、AudioContext创建/resume之前，检测可选 `navigator.audioSession` 并指定 `playback`。文件、凭证、清单与播放器生命周期均未改变。依据[WebKit记录](https://bugs.webkit.org/show_bug.cgi?id=237322)和[W3C工作草案](https://www.w3.org/TR/audio-session/)，这是针对默认Web Audio媒体会话的兼容修复；不能由该现象断言所有设备静音或失败原因相同。用户刷新后明确确认iPad已恢复有声。
+
+Implementation mode，本地复核，无独立审查代理。`node --test --test-name-pattern='media session' tests/audio.test.js` 两项测试先失败后通过，覆盖同步媒体路由、缓存复用、实际结束与配置失败不推进。`npm run test:browser -- --project=chromium-ipad --grep 'bundled and Aliyun'` 新增一项回归通过，使用模拟媒体会话及真实Web Audio/WAV，覆盖预置与标准阿里云两驱动。`npm run build`通过；格式与空白检查通过。WebKit初次运行因缺少libevent等运行库未启动，临时依赖已补齐；后续完整测试/双浏览器调用被用户中断，未读取最终结果，不声称通过。浏览器仍有颜色环境变量冲突警告，来源未验证。用户真机确认后停止额外全量回归和161项重复解码。
+
 ## 2026-10-01 精品英音接入
 
 代码质量模式：Implementation mode；完成生成器、导入发布、网页兼容及凭证边界的本地复核，未使用独立审查代理。新增 `--quality premium`，默认 Emily_v3.1，音频保存到独立目录；TXT/CSV/PDF 继续使用原解析流程，无输入时读取当前已发布词表。标准声音保持可用，同内容切换品质保留错词。
