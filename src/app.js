@@ -3,7 +3,11 @@ import { builtinSource } from "./words.js";
 import { DictationPlayer, isBritish } from "./player.js";
 import { BundledAudio, bundledVoice } from "./audio.js";
 import audioCatalog from "./audio-catalog.json";
-import { makeAliyunVoice } from "./aliyun-audio.js";
+import {
+  makeAliyunVoice,
+  validateAliyunManifest,
+  validatePublishedSource,
+} from "./aliyun-audio.js";
 import {
   parseFile,
   parseEditable,
@@ -35,35 +39,98 @@ const builtinAudio = new BundledAudio({
   catalog: audioCatalog,
   baseURL: new URL(`${import.meta.env.BASE_URL}audio/`, document.baseURI).href,
 });
-const aliyunManifest = __ALIYUN_AUDIO__;
-const aliyunVoice = aliyunManifest?.entries.length
-  ? makeAliyunVoice(aliyunManifest)
-  : null;
-const aliyunAudio = aliyunVoice
-  ? new BundledAudio({
-      catalog: aliyunManifest.entries,
-      baseURL: new URL(
-        `${import.meta.env.BASE_URL}audio/aliyun/`,
-        document.baseURI,
-      ).href,
-    })
-  : null;
+const aliyunAssets = new Map();
+
+/** Read files from the current site on every page load, including after a CLI publish. */
+async function readPublishedJson(name) {
+  const url = new URL(
+    `${import.meta.env.BASE_URL}audio/aliyun/${name}`,
+    document.baseURI,
+  );
+  const response = await fetch(url, { cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`读取 ${name} 失败（HTTP ${response.status}）。`);
+  // Vite can serve its HTML fallback when a private JSON file has not been generated.
+  if (response.headers.get("content-type")?.includes("text/html")) return null;
+  return response.json();
+}
+
+/**
+ * Load each private catalog independently, then apply a complete published list.
+ * A quality switch preserves mistakes for the same source; repeated publication
+ * preserves manual choices, and damaged storage remains protected.
+ */
+async function loadPublishedAssets() {
+  for (const quality of ["standard", "premium"]) {
+    try {
+      const directory = quality === "premium" ? "premium/" : "";
+      const manifest = await readPublishedJson(`${directory}manifest.json`);
+      if (!manifest) continue;
+      validateAliyunManifest(manifest);
+      if (manifest.version !== (quality === "premium" ? 2 : 1))
+        throw new Error("音频清单与所在品质目录不一致。");
+      if (manifest.entries.length)
+        aliyunAssets.set(quality, {
+          manifest,
+          voice: makeAliyunVoice(manifest),
+          audio: new BundledAudio({
+            catalog: manifest.entries,
+            baseURL: new URL(
+              `${import.meta.env.BASE_URL}audio/aliyun/${directory}`,
+              document.baseURI,
+            ).href,
+          }),
+        });
+    } catch (error) {
+      message(
+        `${quality === "premium" ? "精品" : "标准"}英音加载失败：${error.message}`,
+        true,
+      );
+    }
+  }
+  try {
+    const published = await readPublishedJson("active-list.json");
+    if (!published) return;
+    const quality = published.audioQuality ?? "standard";
+    const assets = aliyunAssets.get(quality);
+    if (!assets) throw new Error("命令行词表缺少对应品质的阿里云音频清单。");
+    const source = validatePublishedSource(published, assets.manifest);
+    if (
+      source.id === snapshot.lastCliSourceId &&
+      quality === (snapshot.lastCliAudioQuality ?? "standard")
+    )
+      return;
+    if (protectedStorage) {
+      message("命令行词表未自动导入：请先处理受保护的本地记录。", true);
+      return;
+    }
+    if (snapshot.source.id !== source.id) snapshot.mistakes = [];
+    snapshot.source = source;
+    snapshot.lastCliSourceId = source.id;
+    snapshot.lastCliAudioQuality = quality;
+    snapshot.settings.voiceURI = assets.voice.voiceURI;
+    persist();
+  } catch (error) {
+    message(`本地音频或词表加载失败：${error.message}`, true);
+  }
+}
 
 /** Route recorded playback by the explicitly selected voice; a missing item never switches sources. */
 function selectedAudio() {
-  return currentVoice()?.voiceURI === aliyunVoice?.voiceURI && aliyunAudio
-    ? aliyunAudio
-    : builtinAudio;
+  for (const assets of aliyunAssets.values())
+    if (currentVoice()?.voiceURI === assets.voice.voiceURI) return assets.audio;
+  return builtinAudio;
 }
 
-// DictationPlayer remains the sole lifecycle owner; both drivers are cancelled on every transition.
+// DictationPlayer owns the lifecycle; every recorded driver is cancelled on each transition.
 const audio = {
   canPlay: (item) => selectedAudio().canPlay(item),
   play: (item, callbacks) => selectedAudio().play(item, callbacks),
   unlock: () => selectedAudio().unlock(),
   cancel() {
     builtinAudio.cancel();
-    aliyunAudio?.cancel();
+    for (const assets of aliyunAssets.values()) assets.audio.cancel();
   },
 };
 const player = new DictationPlayer({
@@ -265,7 +332,11 @@ function canReadQueue() {
 function renderVoiceHelp() {
   const covered = queue.filter((item) => audio.canPlay(item)).length;
   const label =
-    currentVoice()?.voiceURI === "aliyun-en-GB" ? "阿里云英音" : "预置英音";
+    currentVoice()?.voiceURI === "aliyun-premium-en-GB"
+      ? "阿里云精品英音"
+      : currentVoice()?.voiceURI === "aliyun-en-GB"
+        ? "阿里云英音"
+        : "预置英音";
   $("voice-help").textContent = currentVoice()?.recorded
     ? `${label}覆盖 ${covered} / ${queue.length} 项。${covered < queue.length ? "未收录项可选择其他英音，或补充录音后练习。" : "声音随网站提供，无需下载系统语音。"}`
     : "正在使用设备的英国英语声音，音质由系统提供；可切回预置英音。";
@@ -276,7 +347,7 @@ function refreshVoices() {
   const previous = currentVoice()?.voiceURI;
   voices = [
     bundledVoice,
-    ...(aliyunVoice ? [aliyunVoice] : []),
+    ...[...aliyunAssets.values()].map((assets) => assets.voice),
     ...(window.speechSynthesis?.getVoices() || []).filter(isBritish),
   ];
   $("voice-select").replaceChildren();
@@ -569,6 +640,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => player.stop());
 
+await loadPublishedAssets();
 renderSource();
 refreshVoices();
 storageWarning(loaded.error);

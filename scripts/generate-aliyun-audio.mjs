@@ -7,7 +7,12 @@ import { createRequire } from "node:module";
 import { builtinSource } from "../src/words.js";
 import { parseEditable, parseCsv, validateGroups } from "../src/import.js";
 import { normalizeWord } from "../src/audio.js";
-import { aliyunVoices, validateAliyunManifest } from "../src/aliyun-audio.js";
+import {
+  aliyunVoices,
+  premiumVoices,
+  premiumModel,
+  validateAliyunManifest,
+} from "../src/aliyun-audio.js";
 
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const defaultOutput = join(projectRoot, "public/audio/aliyun");
@@ -157,13 +162,12 @@ function validateWav(bytes) {
 }
 
 /** Missing indexes are normal; malformed existing indexes must not be silently discarded. */
-async function loadManifest(directory, voice, speechRate) {
+async function loadManifest(directory, configuration) {
   let raw;
   try {
     raw = await readFile(join(directory, "manifest.json"), "utf8");
   } catch (error) {
-    if (error.code === "ENOENT")
-      return { version: 1, voice, speechRate, entries: [] };
+    if (error.code === "ENOENT") return { ...configuration, entries: [] };
     throw error;
   }
   let manifest;
@@ -172,11 +176,119 @@ async function loadManifest(directory, voice, speechRate) {
   } catch {
     throw new Error("已有阿里云音频清单无效，请先检查或恢复备份。");
   }
-  if (manifest.voice !== voice || manifest.speechRate !== speechRate)
+  if (
+    Object.entries(configuration).some(
+      ([key, value]) => manifest[key] !== value,
+    )
+  )
     throw new Error(
-      "已有音频配置不同；请备份并移走 public/audio/aliyun 后重新生成，避免混声。",
+      `已有音频配置不同；请备份并移走 ${directory} 后重新生成，避免混声。`,
     );
   return manifest;
+}
+
+/**
+ * Synthesize one premium item and immediately download its complete WAV.
+ * Only the workspace endpoint receives the key; signed download URLs are never logged
+ * or persisted, and only Beijing OSS HTTPS hosts may receive an unauthenticated GET.
+ */
+async function downloadPremiumAudio({
+  word,
+  configuration,
+  env,
+  fetcher,
+  signal,
+}) {
+  const requestSignal = () =>
+    AbortSignal.any([AbortSignal.timeout(30000), ...(signal ? [signal] : [])]);
+  const response = await fetcher(
+    `https://${env.DASHSCOPE_WORKSPACE_ID}.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer`,
+    {
+      method: "POST",
+      redirect: "error",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.DASHSCOPE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: configuration.model,
+        input: {
+          text: word,
+          voice: configuration.voice,
+          format: "wav",
+          sample_rate: configuration.sampleRate,
+          rate: configuration.rate,
+        },
+      }),
+      signal: requestSignal(),
+    },
+  );
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new AudioResponseError(
+      `精品接口未返回 JSON（HTTP ${response.status}）。`,
+    );
+  }
+  if (!response.ok || result?.code) {
+    const code =
+      typeof result?.code === "string" &&
+      /^(InvalidApiKey|InvalidParameter|AccessDenied|Unauthorized|Throttling|QuotaExceeded|ModelNotFound|InternalError|BadRequest)$/.test(
+        result.code,
+      )
+        ? `，错误码 ${result.code}`
+        : "";
+    throw new AudioResponseError(
+      `精品接口失败：HTTP ${response.status}${code}。`,
+    );
+  }
+  if (
+    result?.output?.finish_reason !== "stop" ||
+    typeof result.output.audio?.url !== "string"
+  )
+    throw new AudioResponseError("精品合成未完成或缺少音频下载地址。");
+  let url;
+  try {
+    url = new URL(result.output.audio.url);
+  } catch {
+    throw new AudioResponseError("精品音频下载地址无效。");
+  }
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.port ||
+    !/^[a-z0-9][a-z0-9-]*\.oss-cn-beijing\.aliyuncs\.com$/.test(url.hostname)
+  )
+    throw new AudioResponseError("精品音频下载地址不是北京阿里云 OSS 地址。");
+  url.protocol = "https:";
+  signal?.throwIfAborted();
+  const audio = await fetcher(url.href, {
+    method: "GET",
+    redirect: "error",
+    signal: requestSignal(),
+  });
+  if (
+    !audio.ok ||
+    !/^(audio\/|application\/octet-stream(?:;|$))/i.test(
+      audio.headers.get("content-type") || "",
+    )
+  )
+    throw new AudioResponseError(`精品音频下载失败：HTTP ${audio.status}。`);
+  const bytes = Buffer.from(await audio.arrayBuffer());
+  const usage = result.usage;
+  return {
+    bytes,
+    usage:
+      usage &&
+      Number.isSafeInteger(usage.input_tokens) &&
+      usage.input_tokens >= 0 &&
+      Number.isSafeInteger(usage.output_tokens) &&
+      usage.output_tokens >= 0
+        ? { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens }
+        : null,
+  };
 }
 
 /** A successful index entry is reusable only while its file, configuration and checksum match. */
@@ -211,9 +323,11 @@ async function atomicWrite(path, data) {
 export async function generateAudio({
   words,
   inputPath,
-  outputDirectory = defaultOutput,
-  voice = "emily",
+  outputDirectory,
+  quality = "standard",
+  voice,
   speechRate = 0,
+  rate = 1,
   execute = false,
   env = process.env,
   fetch: fetcher = globalThis.fetch,
@@ -221,12 +335,30 @@ export async function generateAudio({
   signal,
   log = console.log,
 } = {}) {
+  if (!["standard", "premium"].includes(quality))
+    throw new Error("品质请选择 standard 或 premium。");
+  const premium = quality === "premium";
+  outputDirectory ??= premium ? join(defaultOutput, "premium") : defaultOutput;
+  voice ??= premium ? "Emily_v3.1" : "emily";
   if (
-    !Object.hasOwn(aliyunVoices, voice) ||
-    !Number.isInteger(speechRate) ||
-    Math.abs(speechRate) > 500
+    premium
+      ? !Object.hasOwn(premiumVoices, voice) ||
+        !Number.isFinite(rate) ||
+        rate < 0.5 ||
+        rate > 2 ||
+        speechRate !== 0
+      : !Object.hasOwn(aliyunVoices, voice) ||
+        !Number.isInteger(speechRate) ||
+        Math.abs(speechRate) > 500
   )
-    throw new Error("请选择 emily/eric 英音，语速应为 -500～500 的整数。");
+    throw new Error(
+      premium
+        ? "请选择精品英音 Emily/Eric/Luna/Luca_v3.1，rate 范围 0.5～2；精品不支持 speech-rate。"
+        : "请选择 emily/eric 英音，语速应为 -500～500 的整数。",
+    );
+  const configuration = premium
+    ? { version: 2, model: premiumModel, voice, rate, sampleRate: 24000 }
+    : { version: 1, voice, speechRate };
   words = words
     ? [
         ...new Set(
@@ -239,7 +371,7 @@ export async function generateAudio({
   const filenames = new Map(
     words.map((word) => [
       word,
-      `${sha256(JSON.stringify({ word, voice, speechRate }))}.wav`,
+      `${sha256(JSON.stringify(premium ? { word, ...configuration } : { word, voice, speechRate }))}.wav`,
     ]),
   );
   let lock;
@@ -258,7 +390,7 @@ export async function generateAudio({
     }
   }
   try {
-    const manifest = await loadManifest(outputDirectory, voice, speechRate);
+    const manifest = await loadManifest(outputDirectory, configuration);
     const entries = new Map(
       manifest.entries.map((entry) => [entry.english, entry]),
     );
@@ -277,54 +409,90 @@ export async function generateAudio({
       skipped: words.length - pending.length,
       pending: pending.length,
       generated: 0,
+      ...(premium ? { inputTokens: 0, outputTokens: 0 } : {}),
     };
     log(
-      `共 ${summary.total} 项，已有 ${summary.skipped} 项，待生成 ${summary.pending} 项；按起步价估算合成费 ${(pending.length * 0.0035).toFixed(4)} 元（试用/资源包另计）。`,
+      `共 ${summary.total} 项，已有 ${summary.skipped} 项，待生成 ${summary.pending} 项；${premium ? "精品按实际输入/输出 Token 计费，预览不估算费用。" : `按起步价估算合成费 ${(pending.length * 0.0035).toFixed(4)} 元（试用/资源包另计）。`}`,
     );
     if (!execute || !pending.length) {
       if (!execute) log("仅预览，未调用 API；添加 --execute 才开始生成。");
       return summary;
     }
-    if (!env.ALIYUN_NLS_APPKEY) throw new Error("请配置 ALIYUN_NLS_APPKEY。");
-    getToken ||= createTokenProvider({ env });
+    if (premium) {
+      if (!env.DASHSCOPE_API_KEY)
+        throw new Error("请在 .env.local 配置北京地域 DASHSCOPE_API_KEY。");
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(env.DASHSCOPE_WORKSPACE_ID || ""))
+        throw new Error("请在 .env.local 配置有效 DASHSCOPE_WORKSPACE_ID。");
+    } else {
+      if (!env.ALIYUN_NLS_APPKEY) throw new Error("请配置 ALIYUN_NLS_APPKEY。");
+      getToken ||= createTokenProvider({ env });
+    }
     for (const word of pending) {
       signal?.throwIfAborted();
-      const token = await getToken();
+      const token = premium ? null : await getToken();
       signal?.throwIfAborted();
       let response;
       try {
-        response = await fetcher(endpoint, {
-          method: "POST",
-          redirect: "error",
-          headers: { "Content-Type": "application/json", "X-NLS-Token": token },
-          body: JSON.stringify({
-            appkey: env.ALIYUN_NLS_APPKEY,
-            text: word,
-            voice,
-            format: "wav",
-            sample_rate: 16000,
-            speech_rate: speechRate,
-          }),
-          signal: AbortSignal.any([
-            AbortSignal.timeout(30000),
-            ...(signal ? [signal] : []),
-          ]),
-        });
-        if (
-          !response.ok ||
-          !/^audio\//i.test(response.headers.get("content-type") || "")
-        ) {
-          let status;
-          try {
-            status = (await response.json()).status;
-          } catch {
-            /* Non-JSON error pages contain no useful safe status. */
+        let bytes, usage;
+        if (premium)
+          ({ bytes, usage } = await downloadPremiumAudio({
+            word,
+            configuration,
+            env,
+            fetcher,
+            signal,
+          }));
+        else {
+          response = await fetcher(endpoint, {
+            method: "POST",
+            redirect: "error",
+            headers: {
+              "Content-Type": "application/json",
+              "X-NLS-Token": token,
+            },
+            body: JSON.stringify({
+              appkey: env.ALIYUN_NLS_APPKEY,
+              text: word,
+              voice,
+              format: "wav",
+              sample_rate: 16000,
+              speech_rate: speechRate,
+            }),
+            signal: AbortSignal.any([
+              AbortSignal.timeout(30000),
+              ...(signal ? [signal] : []),
+            ]),
+          });
+          if (
+            !response.ok ||
+            !/^audio\//i.test(response.headers.get("content-type") || "")
+          ) {
+            let status;
+            try {
+              status = (await response.json()).status;
+            } catch {
+              /* Non-JSON error pages contain no useful safe status. */
+            }
+            throw new AudioResponseError(
+              `接口失败：HTTP ${response.status}${Number.isSafeInteger(status) ? `，状态 ${status}` : ""}。`,
+            );
           }
-          throw new AudioResponseError(
-            `接口失败：HTTP ${response.status}${Number.isSafeInteger(status) ? `，状态 ${status}` : ""}。`,
-          );
+          bytes = Buffer.from(await response.arrayBuffer());
         }
-        const bytes = Buffer.from(await response.arrayBuffer());
+        // Aliyun streams WAV with estimated lengths. Only normalize its canonical
+        // PCM header after the HTTP body completes; disk reuse stays strictly checked.
+        if (
+          bytes.length > 44 &&
+          bytes.toString("ascii", 0, 4) === "RIFF" &&
+          bytes.toString("ascii", 8, 16) === "WAVEfmt " &&
+          bytes.readUInt32LE(16) === 16 &&
+          bytes.readUInt16LE(20) === 1 &&
+          bytes.toString("ascii", 36, 40) === "data" &&
+          bytes.readUInt32LE(4) === bytes.readUInt32LE(40) + 36
+        ) {
+          bytes.writeUInt32LE(bytes.length - 8, 4);
+          bytes.writeUInt32LE(bytes.length - 44, 40);
+        }
         validateWav(bytes);
         signal?.throwIfAborted();
         const file = filenames.get(word);
@@ -335,6 +503,7 @@ export async function generateAudio({
           sha256: sha256(bytes),
           bytes: bytes.length,
           generatedAt: new Date().toISOString(),
+          ...(usage ? { usage } : {}),
         });
         manifest.entries = [...entries.values()];
         await atomicWrite(
@@ -342,6 +511,10 @@ export async function generateAudio({
           JSON.stringify(manifest, null, 2) + "\n",
         );
         summary.generated++;
+        if (usage) {
+          summary.inputTokens += usage.inputTokens;
+          summary.outputTokens += usage.outputTokens;
+        }
         log(`已保存 ${word}（${summary.generated}/${summary.pending}）。`);
       } catch (error) {
         // Fetch/SDK diagnostics may include request credentials; only our own safe failures escape.
@@ -354,6 +527,10 @@ export async function generateAudio({
         );
       }
     }
+    if (premium)
+      log(
+        `本次已保存音频中可统计的输入 Token：${summary.inputTokens}，输出 Token：${summary.outputTokens}（以供应商账单为准）。`,
+      );
     return summary;
   } finally {
     if (lock) await rm(lock, { recursive: true, force: true });
@@ -365,18 +542,25 @@ async function main() {
   const { values } = parseArgs({
     options: {
       input: { type: "string" },
-      voice: { type: "string", default: "emily" },
-      "speech-rate": { type: "string", default: "0" },
+      quality: { type: "string", default: "standard" },
+      voice: { type: "string" },
+      "speech-rate": { type: "string" },
+      rate: { type: "string" },
       execute: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
   if (values.help) {
     console.log(
-      "npm run audio:aliyun -- [--input words.txt|words.csv] [--voice emily|eric] [--speech-rate 0] [--execute]\n默认内置词表、Emily 英音、仅预览；凭证写入本地 .env.local。",
+      "npm run audio:aliyun -- [--input words.txt|words.csv] [--quality standard|premium] [--voice 音色] [--execute]\n标准版默认 emily，--speech-rate -500～500。精品默认 Emily_v3.1，--rate 0.5～2。默认内置词表、仅预览；凭证写入本地 .env.local。需要自动导入及 PDF 时使用 import:aliyun。",
     );
     return;
   }
+  if (
+    (values.quality === "premium" && values["speech-rate"] !== undefined) ||
+    (values.quality === "standard" && values.rate !== undefined)
+  )
+    throw new Error("精品使用 --rate，标准版使用 --speech-rate。");
   const controller = new AbortController();
   const interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
@@ -384,8 +568,13 @@ async function main() {
   try {
     await generateAudio({
       inputPath: values.input,
+      quality: values.quality,
       voice: values.voice,
-      speechRate: Number(values["speech-rate"]),
+      speechRate:
+        values["speech-rate"] === undefined
+          ? undefined
+          : Number(values["speech-rate"]),
+      rate: values.rate === undefined ? undefined : Number(values.rate),
       execute: values.execute,
       signal: controller.signal,
     });

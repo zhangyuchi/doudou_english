@@ -61,3 +61,28 @@ test("mistakes referring to another source cannot be restored", () => {
     loadSnapshot({ getItem: () => JSON.stringify(data) }, builtinSource).error,
   );
 });
+
+test("old snapshots remain readable and command source marker is validated", () => {
+  const old = defaultSnapshot(builtinSource);
+  delete old.lastCliSourceId;
+  delete old.lastCliAudioQuality;
+  assert.equal(
+    loadSnapshot({ getItem: () => JSON.stringify(old) }, builtinSource).error,
+    null,
+  );
+  const next = defaultSnapshot(builtinSource);
+  next.lastCliSourceId = `cli-${"a".repeat(64)}`;
+  let saved;
+  assert.equal(
+    saveSnapshot({ setItem: (_key, value) => (saved = value) }, next),
+    null,
+  );
+  assert.equal(JSON.parse(saved).lastCliSourceId, next.lastCliSourceId);
+  next.lastCliAudioQuality = "premium";
+  assert.equal(saveSnapshot({ setItem() {} }, next), null);
+  next.lastCliAudioQuality = "invalid";
+  assert.match(saveSnapshot({ setItem() {} }, next), /保存/);
+  next.lastCliAudioQuality = "standard";
+  next.lastCliSourceId = "../../invalid";
+  assert.match(saveSnapshot({ setItem() {} }, next), /保存/);
+});

@@ -84,7 +84,11 @@ point out,"指出,指明",2
 
 可主动选择设备实际提供的 `en-GB` 系统英音。导入的新词按英文内容匹配预置目录：已收录项直接复用，未收录项会显示覆盖数量并阻止整组预置听写；可选系统英音或由维护者补充录音。不会自动换声音、跳过缺词或把长短语拆词拼接。
 
-个人学习还可[使用阿里云生成本地英音](docs/aliyun-audio.md)：`npm run audio:aliyun` 先预览，配置本地凭证后加 `--execute` 生成。网页随后可选择「阿里云英音」，练习时无需调用 API；私人音频不采用上述开放许可。
+个人学习还可[使用阿里云生成本地英音](docs/aliyun-audio.md)。已有 `npm run audio:aliyun` 只生成声音；新命令 `npm run import:aliyun -- --input 词表.txt` 先预览 TXT、CSV 或文字版中英 PDF，配置本地凭证后加 `--execute` 才生成音频并发布词表。本机网页刷新后自动显示新词表、选中「阿里云英音」；练习时无需调用 API。私人音频不采用上述开放许可。
+
+省略 `--input`：`npm run import:aliyun -- --execute` 补齐当前已发布词表缺失或损坏的阿里云音频，并复用已有音色、语速和有效文件。尚未发布词表时使用内置词表；网页手动导入的浏览器本地词表仍需首次通过 `--input` 指定文件。不加 `--execute` 仅预览。
+
+精品英音使用 `npm run import:aliyun -- --quality premium` 预览，填好 `.env.local` 中北京百炼的 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_WORKSPACE_ID` 后加 `--execute` 下载并发布。默认 `qwen-audio-3.1-tts-flash` / `Emily_v3.1`，也支持 Eric、Luna、Luca 的精品英音；`--input` 仍可接 TXT/CSV/PDF。精品文件单独保存，网页可选择标准或精品英音，同一词表切换品质保留错词。详见[精品英音接入](docs/aliyun-audio.md#精品英音百炼)。
 
 现代浏览器可播放同一份音频，但不承诺所有旧 OS/浏览器。不同说话者的音色、重音和教材原录音可能不同，自动解码测试不能替代实际听感核对。真实 iPad/Android 的音质、音频解锁及后台/锁屏行为仍需设备试用。
 

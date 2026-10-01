@@ -11,6 +11,10 @@ import {
   readWords,
   createTokenProvider,
 } from "../scripts/generate-aliyun-audio.mjs";
+import {
+  validateAliyunManifest,
+  makeAliyunVoice,
+} from "../src/aliyun-audio.js";
 
 function wav() {
   const data = Buffer.alloc(364);
@@ -50,6 +54,255 @@ async function fixture(t) {
   };
   return { root, options, requests };
 }
+
+test("premium preview is free; synthesis downloads a signed WAV privately and records token usage", async (t) => {
+  const f = await fixture(t);
+  const requests = [];
+  const logs = [];
+  const options = {
+    ...f.options,
+    quality: "premium",
+    voice: "Emily_v3.1",
+    rate: 0.9,
+    env: {
+      DASHSCOPE_API_KEY: "private-premium-key",
+      DASHSCOPE_WORKSPACE_ID: "workspace-test",
+    },
+    fetch: async (url, init) => {
+      requests.push({ url: String(url), ...init });
+      return init.method === "POST"
+        ? Response.json({
+            output: {
+              finish_reason: "stop",
+              audio: {
+                url: "http://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/audio.wav?signature=private-signature",
+              },
+            },
+            usage: { input_tokens: 3, output_tokens: 10 },
+          })
+        : new Response(wav(), { headers: { "Content-Type": "audio/wav" } });
+    },
+    log: (line) => logs.push(line),
+  };
+  const preview = await generateAudio({ ...options, execute: false, env: {} });
+  assert.equal(preview.pending, 2);
+  assert.equal(requests.length, 0);
+  assert.doesNotMatch(logs.join("\n"), /0\.0070/);
+  await assert.rejects(
+    readFile(join(options.outputDirectory, "manifest.json")),
+    { code: "ENOENT" },
+  );
+  const result = await generateAudio(options);
+  assert.equal(result.generated, 2);
+  assert.equal(result.inputTokens, 6);
+  assert.equal(result.outputTokens, 20);
+  assert.equal(
+    requests[0].url,
+    "https://workspace-test.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer",
+  );
+  assert.equal(requests[0].headers.Authorization, "Bearer private-premium-key");
+  assert.deepEqual(JSON.parse(requests[0].body), {
+    model: "qwen-audio-3.1-tts-flash",
+    input: {
+      text: "apple",
+      voice: "Emily_v3.1",
+      format: "wav",
+      sample_rate: 24000,
+      rate: 0.9,
+    },
+  });
+  assert.match(
+    requests[1].url,
+    /^https:\/\/dashscope-result-bj\.oss-cn-beijing\.aliyuncs\.com/,
+  );
+  assert.equal(requests[1].headers?.Authorization, undefined);
+  assert.equal(requests[1].redirect, "error");
+  const raw = await readFile(
+    join(options.outputDirectory, "manifest.json"),
+    "utf8",
+  );
+  assert.doesNotMatch(raw + logs.join("\n"), /private-|signature|appkey/i);
+  const manifest = validateAliyunManifest(JSON.parse(raw));
+  assert.equal(manifest.version, 2);
+  assert.equal(manifest.rate, 0.9);
+  assert.equal(makeAliyunVoice(manifest).voiceURI, "aliyun-premium-en-GB");
+  const reused = await generateAudio({ ...options, env: {} });
+  assert.equal(reused.skipped, 2);
+  assert.equal(requests.length, 4);
+  await assert.rejects(generateAudio({ ...options, rate: 1 }), /配置/);
+  assert.equal(requests.length, 4);
+});
+
+test("premium credentials, failed responses and untrusted download URLs fail without leaking secrets", async (t) => {
+  const f = await fixture(t);
+  const options = {
+    ...f.options,
+    quality: "premium",
+    voice: "Eric_v3.1",
+    words: ["apple"],
+    env: {
+      DASHSCOPE_API_KEY: "private-key",
+      DASHSCOPE_WORKSPACE_ID: "workspace-test",
+    },
+  };
+  await assert.rejects(
+    generateAudio({ ...options, env: {} }),
+    /DASHSCOPE_API_KEY/,
+  );
+  await assert.rejects(
+    generateAudio({
+      ...options,
+      env: { ...options.env, DASHSCOPE_WORKSPACE_ID: "bad/path" },
+    }),
+    /WORKSPACE/,
+  );
+  const responses = [
+    Response.json(
+      { code: "InvalidApiKey", message: "private-key" },
+      { status: 401 },
+    ),
+    Response.json(
+      { code: "private-key", message: "private-key" },
+      { status: 401 },
+    ),
+    Response.json({ output: { finish_reason: "stop", audio: {} } }),
+    Response.json({
+      output: {
+        finish_reason: "null",
+        audio: {
+          url: "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/a.wav",
+        },
+      },
+    }),
+    ...[
+      "http://127.0.0.1/a.wav",
+      "https://example.com/a.wav",
+      "https://private-key@dashscope-result-bj.oss-cn-beijing.aliyuncs.com/a.wav",
+    ].map((url) =>
+      Response.json({ output: { finish_reason: "stop", audio: { url } } }),
+    ),
+  ];
+  for (const response of responses) {
+    let calls = 0;
+    await assert.rejects(
+      generateAudio({
+        ...options,
+        fetch: async () => {
+          calls++;
+          return response;
+        },
+      }),
+      (error) => {
+        assert.doesNotMatch(error.message, /private-key/);
+        return true;
+      },
+    );
+    assert.equal(calls, 1);
+  }
+  await assert.rejects(
+    readFile(join(options.outputDirectory, "manifest.json")),
+    { code: "ENOENT" },
+  );
+  let calls = 0;
+  await assert.rejects(
+    generateAudio({
+      ...options,
+      fetch: async () => {
+        calls++;
+        return calls === 1
+          ? Response.json({
+              output: {
+                finish_reason: "stop",
+                audio: {
+                  url: "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/a.wav",
+                },
+              },
+            })
+          : new Response("not WAV", {
+              headers: { "Content-Type": "audio/wav" },
+            });
+      },
+    }),
+    /WAV/,
+  );
+  await assert.rejects(
+    readFile(join(options.outputDirectory, "manifest.json")),
+    { code: "ENOENT" },
+  );
+});
+
+test("premium partial progress is resumed and cancellation never starts the signed download", async (t) => {
+  const f = await fixture(t);
+  const reply = () =>
+    Response.json({
+      output: {
+        finish_reason: "stop",
+        audio: {
+          url: "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/audio.wav?private-signature",
+        },
+      },
+      usage: { input_tokens: 2, output_tokens: 4 },
+    });
+  let calls = 0;
+  const options = {
+    ...f.options,
+    quality: "premium",
+    voice: "Emily_v3.1",
+    env: { DASHSCOPE_API_KEY: "private-key", DASHSCOPE_WORKSPACE_ID: "test" },
+    fetch: async (_url, init) => {
+      calls++;
+      if (calls === 3) throw new Error("private-key private-signature");
+      return init.method === "POST"
+        ? reply()
+        : new Response(wav(), {
+            headers: { "Content-Type": "application/octet-stream" },
+          });
+    },
+  };
+  await assert.rejects(generateAudio(options), (error) => {
+    assert.match(error.message, /已保存 1 项/);
+    assert.doesNotMatch(error.message, /private-/);
+    return true;
+  });
+  let manifest = JSON.parse(
+    await readFile(join(options.outputDirectory, "manifest.json"), "utf8"),
+  );
+  assert.deepEqual(
+    manifest.entries.map((entry) => entry.english),
+    ["apple"],
+  );
+  calls = 0;
+  const resumed = await generateAudio(options);
+  assert.equal(resumed.skipped, 1);
+  assert.equal(resumed.generated, 1);
+  assert.equal(calls, 2);
+  manifest = JSON.parse(
+    await readFile(join(options.outputDirectory, "manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.entries.length, 2);
+  await mkdir(join(options.outputDirectory, ".generate.lock"));
+  await assert.rejects(generateAudio(options), /另一个|锁/);
+  const controller = new AbortController();
+  calls = 0;
+  const cancelledDirectory = join(f.root, "cancelled");
+  await assert.rejects(
+    generateAudio({
+      ...options,
+      outputDirectory: cancelledDirectory,
+      signal: controller.signal,
+      fetch: async () => {
+        calls++;
+        controller.abort();
+        return reply();
+      },
+    }),
+    /取消/,
+  );
+  assert.equal(calls, 1);
+  await assert.rejects(readFile(join(cancelledDirectory, "manifest.json")), {
+    code: "ENOENT",
+  });
+});
 
 test("TXT/CSV lists preserve complete phrases and reuse browser normalization", async (t) => {
   const f = await fixture(t);
@@ -134,6 +387,54 @@ test("corrupted saved audio is regenerated, but changing voice never overwrites 
   assert.equal((await generateAudio(f.options)).generated, 1);
   await assert.rejects(generateAudio({ ...f.options, voice: "eric" }), /配置/);
   assert.equal(f.requests.length, 3);
+});
+
+test("streaming WAV estimates are corrected only on download and saved audio remains strictly checked", async (t) => {
+  for (const estimatedSize of [160, 153600]) {
+    const f = await fixture(t);
+    const streamed = wav();
+    streamed.writeUInt32LE(estimatedSize + 36, 4);
+    streamed.writeUInt32LE(estimatedSize, 40);
+    const options = {
+      ...f.options,
+      words: ["without"],
+      fetch: async () => {
+        f.requests.push("download");
+        return new Response(streamed, {
+          headers: { "Content-Type": "audio/mpeg" },
+        });
+      },
+    };
+    assert.equal((await generateAudio(options)).generated, 1);
+    const manifest = JSON.parse(
+      await readFile(join(options.outputDirectory, "manifest.json"), "utf8"),
+    );
+    const path = join(options.outputDirectory, manifest.entries[0].file);
+    assert.deepEqual(await readFile(path), wav());
+    assert.equal((await generateAudio({ ...options, env: {} })).skipped, 1);
+    assert.equal(f.requests.length, 1);
+    // Local truncation must cause regeneration, never header repair and reuse.
+    await writeFile(path, wav().subarray(0, 100));
+    assert.equal((await generateAudio(options)).generated, 1);
+    assert.equal(f.requests.length, 2);
+    assert.deepEqual(await readFile(path), wav());
+    for (const invalid of [
+      streamed.subarray(0, 363),
+      streamed.subarray(0, 44),
+    ]) {
+      await assert.rejects(
+        generateAudio({
+          ...options,
+          words: ["apple"],
+          fetch: async () =>
+            new Response(invalid, {
+              headers: { "Content-Type": "audio/mpeg" },
+            }),
+        }),
+        /WAV/,
+      );
+    }
+  }
 });
 
 test("an API JSON error stops without publishing it as audio and keeps prior successful words", async (t) => {

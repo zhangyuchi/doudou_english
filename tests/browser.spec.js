@@ -1,9 +1,18 @@
 import { test, expect } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
+import { makeSource } from "../src/import.js";
 
 const pdf = fileURLToPath(
   new URL("../public/examples/外研社7年级英语听写分组.pdf", import.meta.url),
 );
+
+// Private files on the developer's machine must not change test fixtures.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/audio/aliyun/**", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+});
 
 async function mockVoices(page, british = true) {
   await page.addInitScript((available) => {
@@ -254,4 +263,171 @@ test("malformed saved data stay intact until explicit recovery", async ({
         JSON.parse(localStorage.getItem("ipad-dictation:v1")).settings.interval,
     ),
   ).toBe(15);
+});
+
+test("a newly published list appears after refresh, plays Aliyun audio and respects later manual choice", async ({
+  page,
+}) => {
+  const wav = await readFile("public/audio/guitar.wav");
+  const file = `${"a".repeat(64)}.wav`;
+  let version = 0;
+  const published = (word, hash) => ({
+    version: 1,
+    source: makeSource(
+      [{ label: "第 1 组", items: [{ english: word, chinese: "测试" }] }],
+      `命令词表 ${word}`,
+      `cli-${hash.repeat(64)}`,
+    ),
+  });
+  const lists = [
+    null,
+    published("newword", "a"),
+    published("nextword", "b"),
+    published("missingword", "c"),
+  ];
+  await page.route("**/audio/aliyun/manifest.json", (route) =>
+    version === 0
+      ? route.fulfill({ status: 404 })
+      : route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            version: 1,
+            voice: "emily",
+            speechRate: 0,
+            entries: ["newword", "nextword"].map((english) => ({
+              english,
+              file,
+              sha256: "b".repeat(64),
+              bytes: wav.length,
+            })),
+          }),
+        }),
+  );
+  await page.route("**/audio/aliyun/active-list.json", (route) =>
+    version === 0
+      ? route.fulfill({ status: 404 })
+      : route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(lists[version]),
+        }),
+  );
+  await page.route(`**/audio/aliyun/${file}`, (route) =>
+    route.fulfill({ contentType: "audio/wav", body: wav }),
+  );
+  await page.goto("/");
+  await expect(page.locator("#source-title")).toHaveText("外研社七年级英语");
+  version = 1;
+  await page.reload();
+  await expect(page.locator("#source-title")).toHaveText("命令词表 newword");
+  await expect(page.locator("#voice-select")).toHaveValue("aliyun-en-GB");
+  await page.locator("#voice-preview").click();
+  await expect(page.locator("#playback-title")).toHaveText("听一词，写一词。");
+  await page.getByRole("button", { name: "③ 核对答案" }).click();
+  await page.getByRole("checkbox", { name: "标记错词 newword" }).check();
+  await page.reload();
+  await expect(page.locator("#mistakes-count")).toHaveText("1");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator("#builtin-button").click();
+  await page.reload();
+  await expect(page.locator("#source-title")).toHaveText("外研社七年级英语");
+  version = 2;
+  await page.reload();
+  await expect(page.locator("#source-title")).toHaveText("命令词表 nextword");
+  await expect(page.locator("#mistakes-count")).toHaveText("0");
+  version = 3;
+  await page.reload();
+  await expect(page.locator("#source-title")).toHaveText("命令词表 nextword");
+  await expect(page.locator("#message")).toContainText("未覆盖");
+});
+
+test("premium publication switches voice without losing same-list mistakes and survives a broken standard catalog", async ({
+  page,
+}) => {
+  const wav = await readFile("public/audio/guitar.wav");
+  const file = `${"a".repeat(64)}.wav`;
+  const entries = [
+    { english: "apple", file, sha256: "b".repeat(64), bytes: wav.length },
+  ];
+  const source = makeSource(
+    [{ items: [{ english: "apple", chinese: "苹果" }] }],
+    "精品测试",
+    `cli-${"d".repeat(64)}`,
+  );
+  let phase = 0;
+  await page.route("**/audio/aliyun/manifest.json", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body:
+        phase === 2
+          ? "broken"
+          : JSON.stringify({
+              version: 1,
+              voice: "emily",
+              speechRate: 0,
+              entries,
+            }),
+    }),
+  );
+  await page.route("**/audio/aliyun/premium/manifest.json", (route) =>
+    phase === 0
+      ? route.fulfill({ status: 404 })
+      : route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            version: 2,
+            model: "qwen-audio-3.1-tts-flash",
+            voice: "Emily_v3.1",
+            rate: 1,
+            sampleRate: 24000,
+            entries,
+          }),
+        }),
+  );
+  await page.route("**/audio/aliyun/active-list.json", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: 1,
+        source,
+        audioQuality: phase === 0 ? "standard" : "premium",
+      }),
+    }),
+  );
+  await page.route(`**/audio/aliyun/**/${file}`, (route) =>
+    route.fulfill({ contentType: "audio/wav", body: wav }),
+  );
+  await page.goto("/");
+  await expect(page.locator("#voice-select")).toHaveValue("aliyun-en-GB");
+  await page.getByRole("button", { name: "③ 核对答案" }).click();
+  await page.getByRole("checkbox", { name: "标记错词 apple" }).check();
+  phase = 1;
+  await page.reload();
+  await expect(page.locator("#voice-select")).toHaveValue(
+    "aliyun-premium-en-GB",
+  );
+  await expect(page.locator("#mistakes-count")).toHaveText("1");
+  await expect(page.locator("#voice-select option")).toContainText([
+    "预置英音",
+    "阿里云英音",
+    "阿里云精品英音",
+  ]);
+  const audio = page.waitForResponse((response) =>
+    response.url().includes(`/audio/aliyun/premium/${file}`),
+  );
+  await page.locator("#voice-preview").click();
+  expect((await audio).status()).toBe(200);
+  await expect(page.locator("#playback-title")).toHaveText("听一词，写一词。");
+  await page.locator("#voice-select").selectOption("aliyun-en-GB");
+  await page.reload();
+  await expect(page.locator("#voice-select")).toHaveValue("aliyun-en-GB");
+  await expect(page.locator("#mistakes-count")).toHaveText("1");
+  await page.locator("#voice-select").selectOption("aliyun-premium-en-GB");
+  phase = 2;
+  await page.reload();
+  await expect(page.locator("#voice-select")).toHaveValue(
+    "aliyun-premium-en-GB",
+  );
+  await expect(page.locator("#source-title")).toHaveText("精品测试");
+  await expect(page.locator("#voice-help")).toContainText("精品英音覆盖 1 / 1");
+  await expect(page.locator("#mistakes-count")).toHaveText("1");
 });

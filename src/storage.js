@@ -9,12 +9,26 @@ export function defaultSnapshot(source) {
     settings: { repeat: 1, interval: 10, voiceURI: "" },
     source,
     mistakes: [],
+    lastCliSourceId: null,
+    lastCliAudioQuality: null,
   };
 }
 
 /** Validate the complete persisted boundary before restoring any settings or records. */
 function validateSnapshot(value) {
   if (value?.version !== 1) throw new Error("本地记录版本不兼容。");
+  if (
+    value.lastCliAudioQuality !== undefined &&
+    value.lastCliAudioQuality !== null &&
+    !["standard", "premium"].includes(value.lastCliAudioQuality)
+  )
+    throw new Error("命令行音频品质记录损坏。");
+  if (
+    value.lastCliSourceId !== undefined &&
+    value.lastCliSourceId !== null &&
+    !/^cli-[a-f0-9]{64}$/.test(value.lastCliSourceId)
+  )
+    throw new Error("命令行词表记录损坏。");
   const s = value.settings,
     source = value.source;
   if (

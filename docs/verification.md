@@ -1,5 +1,35 @@
 # 验证记录
 
+## 2026-10-01 精品英音接入
+
+代码质量模式：Implementation mode；完成生成器、导入发布、网页兼容及凭证边界的本地复核，未使用独立审查代理。新增 `--quality premium`，默认 Emily_v3.1，音频保存到独立目录；TXT/CSV/PDF 继续使用原解析流程，无输入时读取当前已发布词表。标准声音保持可用，同内容切换品质保留错词。
+
+本次验证：`npm test` 68/68、`npm run test:browser -- --project=chromium-ipad` 10/10 通过；`npm run build`、`npm run test:deploy`、`npm run test:deploy:python`、`npm run format:check` 和 `git diff --check` 通过。两种部署检查继续覆盖 161 项真实预置音频解码、播放、PDF 与 worker；精品路径的浏览器验证使用模拟 API 响应及有效 WAV。
+
+新增测试覆盖精品 POST 与下载两步协议、鉴权头隔离、签名地址不持久化、不可信下载地址拒绝、错误凭证不回显、配置不匹配、失败续传、生成与发布锁、取消、Token 用量、同词表品质切换、刷新保持手动音色及损坏清单隔离。生成器、导入与页面测试分别观察到实现前失败，再通过。
+
+`.env.local` 仅追加 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_WORKSPACE_ID` 空字段，原内容保留；确认该文件被 Git 忽略且权限为 600，构建 JS/HTML 不含已配置凭证。精品无凭证预览显示 11 组、161 项待生成，标准预览仍有 161 项可复用；没有发起真实精品请求。
+
+真实精品账号权限、账单和人工听感待填好北京百炼凭证后验证；本轮没有 Windows 或实体设备验收。PDF 测试的损坏样例触发 PDF.js 索引提示，浏览器环境仍有颜色变量冲突警告，测试未因此失败。
+
+## 2026-10-01 真实阿里云下载及流式 WAV 修复
+
+用户配置 Appkey 与临时 Token 后，执行 `npm run import:aliyun -- --execute`。初次联网请求返回 HTTP 200、`audio/mpeg`，但 `without` WAV 实际 23082 字节，头声明的 RIFF/data 长度为 153636/153600，触发原严格校验。诊断与[阿里云官方 FAQ](https://help.aliyun.com/zh/isi/support/faq-about-speech-synthesis)的流式预估长度说明一致。
+
+修复仅作用于完整读取的成功响应中标准 44 字节 PCM WAV 头；校正长度后再按原严格校验落盘。已保存文件不做头修复，结构或校验和损坏仍重新生成。新增测试先复现失败再通过，覆盖预估长度大于/小于实际、样本不变、磁盘截断、半采样帧及空声音拒绝。全部 `npm test` 63/63、格式与空白检查通过；修复范围在本地审查，未使用独立审查代理。
+
+真实执行成功下载外研社七年级英语 11 组、161 项 Emily 英式女声音频，语速 0，共 3,553,962 字节。词表与清单写入 `public/audio/aliyun` 并完成 `dist` 构建；无参数预览确认已有 161 项、待生成 0 项，全部文件通过 WAV 和 SHA256 复用校验。凭证未输出或写入清单。临时 Chromium 检查本地真实构建的自动词表、音色、全部 161 项解码及试听；尚未人工核对所有读音、实际费用或实体设备。
+
+## 2026-10-01 本地词表与阿里云音频命令
+
+新增 `import:aliyun`，读取 TXT、CSV 或文字版中英 PDF，调用原有生成器并在所有词有音频后发布词表；网页刷新时从同站静态目录读取最新阿里云清单和词表。模拟测试覆盖失败不发布、断点复用、单任务锁、同源刷新保留错词、手动切换与新词表替换。
+
+本次验证：`npm test` 62/62 通过；`npm run test:browser -- --project=chromium-ipad` 9/9 通过；`npm run build`、`npm run test:deploy`、`npm run test:deploy:python` 和 `npm run format:check` 通过。真实样例 PDF 在 CLI 解析出 11 组 161 项；无凭证预览未调用 API。浏览器和静态站点测试使用模拟阿里云响应的有效 WAV，验证自动词表与声音播放，且前端 JS 不包含模拟凭证。
+
+补充无 `--input` 模式后重跑全部 62 项测试，覆盖内置词表回退、已发布词表缺失及损坏音频修复、音色语速继承、词表版本保持、无凭证复用和损坏词表禁止请求；实际无参数预览得到 11 组 161 项且未调用 API。该补充只重跑单元/集成测试、构建与格式检查，独立的 9 项浏览器回归及部署检查沿用此前结果。
+
+空站点没有私人音频清单时，运行时请求可选的 `manifest.json` 和 `active-list.json` 会收到预期 404；部署检查只豁免这两个可选路径，其他 HTTP 错误仍失败。受限沙箱不允许本地 HTTP 服务监听端口，相关测试在获准的沙箱外执行。Chromium 测试环境仍提示 `NO_COLOR` 与 `FORCE_COLOR` 冲突，未验证警告来源。未调用真实阿里云账号或在实体 iPad、Windows 设备试用；远程站点仍须单独发布构建产物。
+
 ## 2026-09-29 预置英音改造
 
 本次工作区验证：`npm test` 44 项通过；`npm run test:browser -- --project=chromium-ipad` 8 项通过；`npm run build`、`npm run test:deploy`、`npm run test:deploy:python`、`npm run format:check`、`git diff --check` 通过。

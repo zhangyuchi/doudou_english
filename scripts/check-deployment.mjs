@@ -45,7 +45,14 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("response", (response) => {
-    if (response.status() >= 400)
+    const optionalPrivateIndex =
+      /\/audio\/aliyun\/(manifest|active-list|premium\/manifest)\.json$/.test(
+        new URL(response.url()).pathname,
+      );
+    if (
+      response.status() >= 400 &&
+      !(response.status() === 404 && optionalPrivateIndex)
+    )
       errors.push(`${response.status()} ${response.url()}`);
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/practice/`);
