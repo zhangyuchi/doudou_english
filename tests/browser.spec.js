@@ -58,6 +58,9 @@ test("original word list opens as a table of headwords and phrase extensions", a
   const dialog = page.locator("#glossary-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("tbody tr")).toHaveCount(161);
+  await expect(
+    dialog.locator('tr[data-english="without"] .phonetic'),
+  ).toHaveText("/wɪˈðaʊt/");
   await expect(dialog.locator('tr[data-english="without"]')).toContainText(
     "缺乏，没有",
   );
@@ -89,6 +92,9 @@ test("original word list opens as a table of headwords and phrase extensions", a
   await expect(dialog.locator('tr[data-english="apple"]')).toContainText(
     "本周新词",
   );
+  await expect(dialog.locator('tr[data-english="apple"] .phonetic')).toHaveText(
+    "",
+  );
   await expect(dialog.locator('tr[data-english="apple"]')).toContainText(
     "green apple",
   );
@@ -117,6 +123,16 @@ test("original word list opens as a table of headwords and phrase extensions", a
   await page.getByRole("button", { name: "查看原词表" }).click();
   await expect(dialog.locator("tbody tr")).toHaveCount(165);
   await expect(dialog.locator('tr[data-english="pear"]')).toContainText("梨");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const without = dialog.locator('tr[data-english="without"]');
+  await expect(without.locator("td.phonetic")).toBeHidden();
+  await expect(without.locator(".phonetic-narrow")).toBeVisible();
+  await expect(without.locator(".phonetic-narrow")).toHaveText("/wɪˈðaʊt/");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
 });
 
 test("iPad layout, English voice, hidden answers, pause and selected-item start", async ({
@@ -124,6 +140,17 @@ test("iPad layout, English voice, hidden answers, pause and selected-item start"
 }) => {
   await mockVoices(page);
   await page.goto("/");
+  await expect(page.locator("#review-list .phonetic").first()).toHaveText(
+    "/wɪˈðaʊt/",
+  );
+  await expect(page.locator("#answers-list .phonetic").first()).toHaveText(
+    "/wɪˈðaʊt/",
+  );
+  await expect(page.locator("#dictation-view .phonetic")).toHaveCount(0);
+  await page.getByRole("button", { name: "② 纸上听写" }).click();
+  await expect(page.locator("#review-view")).toBeHidden();
+  await expect(page.locator("#dictation-view .phonetic")).toHaveCount(0);
+  await page.getByRole("button", { name: "① 复习单词" }).click();
   await expect(page.locator("#source-summary")).toHaveText(
     "11 组 · 161 个听写项",
   );

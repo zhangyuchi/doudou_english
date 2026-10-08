@@ -1,5 +1,6 @@
 import "./style.css";
 import { builtinSource, linkExtensions } from "./words.js";
+import { phoneticLabel } from "./phonetics.js";
 import { DictationPlayer, isBritish } from "./player.js";
 import { BundledAudio, bundledVoice } from "./audio.js";
 import audioCatalog from "./audio-catalog.json";
@@ -251,10 +252,10 @@ function renderWords() {
       english.setAttribute("aria-label", `朗读 ${item.english}`);
       english.disabled = !canRead(item);
       english.onclick = () => speakOne(item);
-      content.append(
-        english,
-        element("p", item.chinese || "未提供中文释义", "chinese"),
-      );
+      content.append(english);
+      const phonetic = phoneticLabel(item);
+      if (phonetic) content.append(element("p", phonetic, "phonetic"));
+      content.append(element("p", item.chinese || "未提供中文释义", "chinese"));
       row.append(content);
       if (view === "review") {
         const sound = element("button", "♪", "speaker-mark");
@@ -623,8 +624,13 @@ function renderGlossary() {
         groupCell.rowSpan = group.items.length;
         row.append(groupCell);
       }
+      const phonetic = phoneticLabel(item);
+      const englishCell = element("td", item.english, "english");
+      if (phonetic)
+        englishCell.append(element("span", phonetic, "phonetic-narrow"));
       row.append(
-        element("td", item.english, "english"),
+        englishCell,
+        element("td", phonetic, "phonetic"),
         element("td", item.chinese || "未提供中文释义", "chinese"),
         element("td", extensionLabel(item), "extension"),
       );

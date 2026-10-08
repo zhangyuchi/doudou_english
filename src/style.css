@@ -363,6 +363,13 @@ select {
   overflow-wrap: anywhere;
   min-height: 29px;
 }
+.word-content .phonetic {
+  margin: 1px 0 0;
+  color: #8d735c;
+  font-size: 13px;
+  line-height: 1.35;
+  font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif;
+}
 .chinese {
   font-size: 11px;
   color: #7e897d;
@@ -631,22 +638,40 @@ footer {
   font-weight: 600;
   color: #5d7264;
 }
+.glossary-table .w-group {
+  width: 13%;
+}
+.glossary-table .w-english {
+  width: 18%;
+}
+.glossary-table .w-phonetic {
+  width: 28%;
+}
+.glossary-table .w-chinese {
+  width: 23%;
+}
+.glossary-table .w-extension {
+  width: 18%;
+}
 .glossary-table .group-cell {
   font-family: Georgia, serif;
   color: var(--green);
-  width: 16%;
 }
 .glossary-table .english {
   font-weight: 650;
   color: var(--green);
-  width: 24%;
 }
-.glossary-table .chinese {
-  width: 32%;
+.glossary-table .phonetic,
+.glossary-table .phonetic-narrow {
+  color: #8d735c;
+  font-weight: 400;
+  font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif;
+}
+.glossary-table .phonetic-narrow {
+  display: none;
 }
 .glossary-table .extension {
   color: #75613b;
-  width: 28%;
 }
 .glossary-table tr.is-extension .english {
   font-weight: 550;
@@ -873,6 +898,28 @@ textarea {
   .glossary-table th,
   .glossary-table td {
     padding: 8px 6px;
+  }
+  .glossary-table th.w-phonetic,
+  .glossary-table td.phonetic {
+    display: none;
+  }
+  .glossary-table .phonetic-narrow {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .glossary-table .w-group {
+    width: 18%;
+  }
+  .glossary-table .w-english {
+    width: 32%;
+  }
+  .glossary-table .w-chinese {
+    width: 28%;
+  }
+  .glossary-table .w-extension {
+    width: 22%;
   }
   .dictation-stage {
     padding-top: 22px;

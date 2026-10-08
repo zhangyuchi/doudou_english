@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { builtinSource, linkExtensions } from "../src/words.js";
 import { createGlossary, mergeGlossary } from "../src/glossary.js";
+import { phoneticFor, phoneticLabel } from "../src/phonetics.js";
 
 const linked = linkExtensions(builtinSource.groups);
 const items = linked.flatMap((group) => group.items);
@@ -92,4 +93,21 @@ test("imports add new words and keep words already in the complete list", () => 
   assert.equal(second.groups.at(-1).label, "再来一批 · 第 1 组");
   assert.equal(second.groups.at(-1).items[0].english, "pear");
   assert.equal(base.groups.flatMap((group) => group.items).length, 161);
+});
+
+test("built-in words have British phonetics and imported words stay blank", () => {
+  const entries = builtinSource.groups.flatMap((group) => group.items);
+  assert.equal(entries.length, 161);
+  assert.equal(entries.filter((item) => phoneticFor(item.english)).length, 161);
+  assert.equal(phoneticFor("Without"), "wɪˈðaʊt");
+  assert.equal(phoneticFor("in fact"), "ɪn ˈfækt");
+  assert.equal(phoneticFor("against the law"), "əˈɡenst ðə ˈlɔː");
+  assert.equal(phoneticFor("paper-cutting"), "ˈpeɪpə ˌkʌtɪŋ");
+  assert.equal(phoneticFor("wind"), "ˈwɪnd");
+  assert.equal(phoneticFor("tear"), "ˈtiə");
+  assert.equal(phoneticLabel({ english: "apple", chinese: "苹果" }), "");
+  assert.equal(
+    phoneticLabel({ english: "apple", phonetic: "ˈæpəl" }),
+    "/ˈæpəl/",
+  );
 });
