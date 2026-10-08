@@ -1,5 +1,5 @@
 import "./style.css";
-import { builtinSource } from "./words.js";
+import { builtinSource, linkExtensions } from "./words.js";
 import { DictationPlayer, isBritish } from "./player.js";
 import { BundledAudio, bundledVoice } from "./audio.js";
 import audioCatalog from "./audio-catalog.json";
@@ -15,6 +15,7 @@ import {
   regroup,
   makeSource,
 } from "./import.js";
+import { mergeGlossary } from "./glossary.js";
 import { loadSnapshot, saveSnapshot } from "./storage.js";
 
 const $ = (id) => document.getElementById(id);
@@ -106,6 +107,7 @@ async function loadPublishedAssets() {
       return;
     }
     if (snapshot.source.id !== source.id) snapshot.mistakes = [];
+    snapshot.glossary = mergeGlossary(snapshot.glossary, source);
     snapshot.source = source;
     snapshot.lastCliSourceId = source.id;
     snapshot.lastCliAudioQuality = quality;
@@ -221,6 +223,7 @@ function renderSource() {
   applySettings();
   renderWords();
   renderMode();
+  if ($("glossary-dialog").open) renderGlossary();
 }
 
 /** Render review and answer rows safely and keep duplicate occurrences independent. */
@@ -523,8 +526,9 @@ function closeImport() {
 }
 
 /** Replace a confirmed source and its mistakes together; write failures stay visible. */
-function useSource(source) {
+function useSource(source, { accumulate = false } = {}) {
   player.stop();
+  if (accumulate) snapshot.glossary = mergeGlossary(snapshot.glossary, source);
   snapshot.source = source;
   snapshot.mistakes = [];
   groupIndex = 0;
@@ -589,6 +593,51 @@ $("builtin-button").onclick = () => {
   if (window.confirm("返回内置词表会清空当前词表的错词记录，是否继续？"))
     useSource(structuredClone(builtinSource));
 };
+function extensionLabel(item) {
+  if (item.extensions.length)
+    return item.extensions
+      .map((entry) => `${entry.english}　${entry.chinese}`)
+      .join("；");
+  if (item.extensionOf) return `扩展自 ${item.extensionOf}`;
+  return "";
+}
+function renderGlossary() {
+  const glossary = snapshot.glossary;
+  const groups = linkExtensions(glossary.groups);
+  const items = groups.flatMap((group) => group.items);
+  const extensionCount = items.filter((item) => item.extensionOf).length;
+  $("glossary-eyebrow").textContent = glossary.title;
+  $("glossary-caption").textContent = `${glossary.title}和短语扩展`;
+  $("glossary-summary").textContent = extensionCount
+    ? `${groups.length} 组 · ${items.length} 项，其中 ${extensionCount} 项是短语扩展。`
+    : `${groups.length} 组 · ${items.length} 项。`;
+  const body = $("glossary-body");
+  body.replaceChildren();
+  for (const group of groups) {
+    group.items.forEach((item, index) => {
+      const row = element("tr");
+      if (item.extensionOf) row.className = "is-extension";
+      row.dataset.english = item.english;
+      if (index === 0) {
+        const groupCell = element("td", group.label, "group-cell");
+        groupCell.rowSpan = group.items.length;
+        row.append(groupCell);
+      }
+      row.append(
+        element("td", item.english, "english"),
+        element("td", item.chinese || "未提供中文释义", "chinese"),
+        element("td", extensionLabel(item), "extension"),
+      );
+      body.append(row);
+    });
+  }
+}
+$("glossary-open").onclick = () => {
+  player.stop();
+  renderGlossary();
+  $("glossary-dialog").showModal();
+};
+$("glossary-close").onclick = () => $("glossary-dialog").close();
 $("storage-recover").onclick = () => {
   protectedStorage = false;
   persist();
@@ -626,11 +675,21 @@ $("import-confirm").onclick = () => {
   try {
     const groups = parseEditable($("import-text").value);
     const id = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const before = snapshot.glossary.groups.flatMap(
+      (group) => group.items,
+    ).length;
     useSource(
       makeSource(groups, $("import-title").value.trim() || "我的词表", id),
+      { accumulate: true },
     );
+    const added =
+      snapshot.glossary.groups.flatMap((group) => group.items).length - before;
     closeImport();
-    message("词表已切换，可以先试听和复习。");
+    message(
+      added
+        ? `已切换练习词表，${added} 个新词已追加到原词表。`
+        : "已切换练习词表。这些单词原词表里已经有了。",
+    );
   } catch (error) {
     $("import-summary").textContent = error.message;
   }

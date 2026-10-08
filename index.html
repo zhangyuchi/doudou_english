@@ -27,12 +27,9 @@
         <p id="source-summary" class="muted"></p>
         <div class="source-actions">
           <button id="builtin-button" class="text-button">返回内置词表</button
-          ><a
-            href="./examples/外研社7年级英语听写分组.pdf"
-            target="_blank"
-            rel="noopener"
-            >查看原词表 ↗</a
-          >
+          ><button id="glossary-open" class="text-button" type="button">
+            查看原词表
+          </button>
         </div>
         <div id="group-list" class="group-list" aria-label="选择听写分组"></div>
         <button id="mistakes-open" class="mistakes-button">
@@ -203,13 +200,39 @@
       ></textarea>
       <p id="import-summary" class="preview-summary" role="status"></p>
       <p class="import-note">
-        确认后将切换到这份词表，清空上一份词表的错词记录。取消不会修改当前词表。
+        确认后切换练习词表，并清空上一份练习的错词。新词会追加进原词表，已经有的单词不重复。取消不会修改。
       </p>
       <div class="dialog-actions">
         <button id="import-cancel" class="secondary-button">取消</button
         ><button id="import-confirm" class="primary-button" disabled>
           确认使用词表
         </button>
+      </div>
+    </dialog>
+    <dialog id="glossary-dialog" class="glossary-dialog">
+      <div class="dialog-heading">
+        <div>
+          <span id="glossary-eyebrow" class="eyebrow"></span>
+          <h2 id="glossary-title">原词表</h2>
+        </div>
+        <button id="glossary-close" class="icon-button" aria-label="关闭原词表">
+          ×
+        </button>
+      </div>
+      <p id="glossary-summary" class="muted"></p>
+      <div class="glossary-scroll">
+        <table class="glossary-table">
+          <caption id="glossary-caption" class="visually-hidden"></caption>
+          <thead>
+            <tr>
+              <th scope="col">组</th>
+              <th scope="col">英文</th>
+              <th scope="col">中文</th>
+              <th scope="col">扩展</th>
+            </tr>
+          </thead>
+          <tbody id="glossary-body"></tbody>
+        </table>
       </div>
     </dialog>
     <script type="module" src="/src/app.js"></script>

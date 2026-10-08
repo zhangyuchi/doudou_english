@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadSnapshot, saveSnapshot, defaultSnapshot } from "../src/storage.js";
 import { builtinSource } from "../src/words.js";
+import { createGlossary } from "../src/glossary.js";
 
 test("a single snapshot restores settings, source and source-scoped mistakes", () => {
   let raw = null;
@@ -85,4 +86,32 @@ test("old snapshots remain readable and command source marker is validated", () 
   next.lastCliAudioQuality = "standard";
   next.lastCliSourceId = "../../invalid";
   assert.match(saveSnapshot({ setItem() {} }, next), /保存/);
+});
+
+test("records saved before the glossary still restore the built-in list and current words", () => {
+  const old = defaultSnapshot(builtinSource);
+  delete old.glossary;
+  old.source = {
+    id: "import-test",
+    title: "新增",
+    groups: [
+      {
+        label: "第 1 组",
+        items: [{ id: "import-test:0:0", english: "apple", chinese: "苹果" }],
+      },
+    ],
+  };
+  old.mistakes = [];
+  const loaded = loadSnapshot(
+    { getItem: () => JSON.stringify(old) },
+    builtinSource,
+  );
+  assert.equal(loaded.error, null);
+  const items = loaded.snapshot.glossary.groups.flatMap((group) => group.items);
+  assert.equal(items.length, 162);
+  assert.equal(items.at(-1).english, "apple");
+  assert.deepEqual(
+    loaded.snapshot.glossary.groups.slice(0, 11).map((group) => group.label),
+    createGlossary(builtinSource).groups.map((group) => group.label),
+  );
 });

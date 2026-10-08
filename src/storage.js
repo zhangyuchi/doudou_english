@@ -1,4 +1,5 @@
 import { validateGroups } from "./import.js";
+import { createGlossary, mergeGlossary } from "./glossary.js";
 
 const KEY = "ipad-dictation:v1";
 
@@ -8,10 +9,40 @@ export function defaultSnapshot(source) {
     version: 1,
     settings: { repeat: 1, interval: 10, voiceURI: "" },
     source,
+    glossary: createGlossary(source),
     mistakes: [],
     lastCliSourceId: null,
     lastCliAudioQuality: null,
   };
+}
+
+/** Accept records saved before the cumulative glossary existed. */
+function validateGlossary(glossary) {
+  if (glossary == null) return;
+  if (
+    glossary.id !== "glossary-v1" ||
+    typeof glossary.title !== "string" ||
+    !glossary.title.trim() ||
+    !Number.isInteger(glossary.nextItem) ||
+    glossary.nextItem < 0 ||
+    !Array.isArray(glossary.groups)
+  )
+    throw new Error("完整词表损坏。");
+  validateGroups(glossary.groups);
+  const ids = glossary.groups.flatMap((group) =>
+    group.items.map((item) => item.id),
+  );
+  const numbers = ids.map((id) =>
+    typeof id === "string" && id.startsWith("glossary-v1:")
+      ? Number(id.slice("glossary-v1:".length))
+      : NaN,
+  );
+  if (
+    numbers.some((number) => !Number.isInteger(number) || number < 0) ||
+    new Set(ids).size !== ids.length ||
+    numbers.some((number) => number >= glossary.nextItem)
+  )
+    throw new Error("完整词表标识损坏。");
 }
 
 /** Validate the complete persisted boundary before restoring any settings or records. */
@@ -62,7 +93,18 @@ function validateSnapshot(value) {
     value.mistakes.some((id) => !ids.includes(id))
   )
     throw new Error("错词记录与词表不匹配。");
+  validateGlossary(value.glossary);
   return value;
+}
+
+/** Old records have no glossary; start from the built-in list and keep their current words. */
+function ensureGlossary(snapshot, builtin) {
+  if (!snapshot.glossary) {
+    snapshot.glossary = createGlossary(builtin);
+    if (snapshot.source?.id !== builtin.id)
+      snapshot.glossary = mergeGlossary(snapshot.glossary, snapshot.source);
+  }
+  return snapshot;
 }
 
 /** Load without writing; damaged records stay protected until explicit user recovery. */
@@ -71,7 +113,7 @@ export function loadSnapshot(storage, builtin) {
     const raw = storage?.getItem(KEY);
     return {
       snapshot: raw
-        ? validateSnapshot(JSON.parse(raw))
+        ? ensureGlossary(validateSnapshot(JSON.parse(raw)), builtin)
         : defaultSnapshot(builtin),
       error: null,
       protected: false,

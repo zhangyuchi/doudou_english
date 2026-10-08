@@ -48,6 +48,77 @@ async function mockVoices(page, british = true) {
   }, british);
 }
 
+test("original word list opens as a table of headwords and phrase extensions", async ({
+  page,
+}) => {
+  await mockVoices(page);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /查看原词表/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "查看原词表" }).click();
+  const dialog = page.locator("#glossary-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator("tbody tr")).toHaveCount(161);
+  await expect(dialog.locator('tr[data-english="without"]')).toContainText(
+    "缺乏，没有",
+  );
+  await expect(dialog.locator('tr[data-english="fact"]')).toContainText(
+    "in fact",
+  );
+  await expect(dialog.locator('tr[data-english="in fact"]')).toContainText(
+    "扩展自 fact",
+  );
+  await expect(
+    dialog.locator('tr[data-english="primary school"]'),
+  ).toContainText("扩展自 primary");
+  await page.getByRole("button", { name: "关闭原词表" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.locator("#import-open").click();
+  await page.locator("#import-title").fill("本周新词");
+  await page
+    .locator("#import-text")
+    .fill("apple\t苹果\ngreen apple\t青苹果\n\nbook\t书");
+  await page.locator("#import-confirm").click();
+  await expect(page.locator("#source-title")).toHaveText("本周新词");
+  await page.getByRole("button", { name: "查看原词表" }).click();
+  await expect(dialog.locator("#glossary-eyebrow")).toHaveText("完整词表");
+  await expect(dialog.locator("tbody tr")).toHaveCount(164);
+  await expect(dialog.locator('tr[data-english="without"]')).toContainText(
+    "缺乏，没有",
+  );
+  await expect(dialog.locator('tr[data-english="apple"]')).toContainText(
+    "本周新词",
+  );
+  await expect(dialog.locator('tr[data-english="apple"]')).toContainText(
+    "green apple",
+  );
+  await page.getByRole("button", { name: "关闭原词表" }).click();
+
+  await page.locator("#import-open").click();
+  await page.locator("#import-title").fill("再来一批");
+  await page.locator("#import-text").fill("pear\t梨\napple\t苹果");
+  await page.locator("#import-confirm").click();
+  await expect(page.locator("#source-title")).toHaveText("再来一批");
+  await page.getByRole("button", { name: "查看原词表" }).click();
+  await expect(dialog.locator("tbody tr")).toHaveCount(165);
+  await expect(dialog.locator('tr[data-english="apple"]')).toHaveCount(1);
+  await expect(dialog.locator('tr[data-english="pear"]')).toContainText("梨");
+  await expect(dialog.locator('tr[data-english="without"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "关闭原词表" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "查看原词表" }).click();
+  await expect(dialog.locator("tbody tr")).toHaveCount(165);
+  await expect(dialog.locator('tr[data-english="pear"]')).toContainText("梨");
+  await page.getByRole("button", { name: "关闭原词表" }).click();
+
+  page.once("dialog", (popup) => popup.accept());
+  await page.locator("#builtin-button").click();
+  await expect(page.locator("#source-title")).toHaveText("外研社七年级英语");
+  await page.getByRole("button", { name: "查看原词表" }).click();
+  await expect(dialog.locator("tbody tr")).toHaveCount(165);
+  await expect(dialog.locator('tr[data-english="pear"]')).toContainText("梨");
+});
+
 test("iPad layout, English voice, hidden answers, pause and selected-item start", async ({
   page,
 }) => {

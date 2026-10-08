@@ -865,3 +865,70 @@ export const builtinSource = {
     },
   ],
 };
+
+const wordTokens = (english) =>
+  english
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean);
+
+/** True when phrase is a contiguous whole-word sequence inside host. */
+function containsWords(host, phrase) {
+  if (!phrase.length || phrase.length >= host.length) return false;
+  for (let start = 0; start <= host.length - phrase.length; start += 1) {
+    if (phrase.every((word, index) => host[start + index] === word))
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Keep every original item, and relate phrases built from an earlier headword.
+ * fact → in fact stays in its own group; the headword also lists that phrase.
+ */
+export function linkExtensions(groups) {
+  const flat = [];
+  groups.forEach((group, groupIndex) => {
+    group.items.forEach((item, itemIndex) => {
+      flat.push({
+        key: item.id ?? `${groupIndex}:${itemIndex}`,
+        english: item.english,
+        chinese: item.chinese || "",
+        tokens: wordTokens(item.english),
+        groupIndex,
+        itemIndex,
+      });
+    });
+  });
+  const headKey = new Map();
+  for (const item of flat) {
+    let best = null;
+    for (const head of flat) {
+      if (head.key === item.key || !containsWords(item.tokens, head.tokens))
+        continue;
+      const score =
+        head.tokens.length * 10 + (head.groupIndex === item.groupIndex ? 1 : 0);
+      if (!best || score > best.score) best = { head, score };
+    }
+    if (best) headKey.set(item.key, best.head.key);
+  }
+  const byKey = new Map(flat.map((item) => [item.key, item]));
+  return groups.map((group, groupIndex) => ({
+    label: group.label,
+    items: group.items.map((item, itemIndex) => {
+      const key = item.id ?? `${groupIndex}:${itemIndex}`;
+      const parent = byKey.get(headKey.get(key));
+      return {
+        english: item.english,
+        chinese: item.chinese || "",
+        extensionOf: parent?.english || "",
+        extensions: flat
+          .filter((child) => headKey.get(child.key) === key)
+          .map((child) => ({
+            english: child.english,
+            chinese: child.chinese,
+          })),
+      };
+    }),
+  }));
+}
