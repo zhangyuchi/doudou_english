@@ -61,20 +61,12 @@ try {
     "11 组 · 161 个听写项",
   );
   await checkAudio(page);
-  await page.locator("#import-open").click();
-  await page
-    .locator("#word-file")
-    .setInputFiles("public/examples/外研社7年级英语听写分组.pdf");
-  await page.waitForFunction(
-    () =>
-      document
-        .getElementById("import-summary")
-        .textContent.includes("11 组 · 161 项"),
-    { timeout: 30000 },
-  );
+  assert.equal(await page.locator("#import-open").count(), 0);
+  assert.equal(await page.locator("#import-dialog").count(), 0);
+  assert.equal(await page.locator('input[type="file"]').count(), 0);
   assert.deepEqual(errors, []);
   console.log(
-    "Built dist works under /practice/: 161 decoded audio files, real playback, app, PDF import, worker and assets load successfully.",
+    "Built dist works under /practice/: 161 decoded audio files, real playback and assets load successfully; web import is disabled.",
   );
 } finally {
   await browser?.close();

@@ -46,15 +46,21 @@ npm run preview -- --host 0.0.0.0 --port 5173
 
 iPad 同样访问电脑的 `http://电脑局域网地址:5173/`。正式网站部署后访问正式网址，不依赖电脑保持运行。第一版不提供离线缓存；不要直接在“文件”应用中打开 index.html，需通过网页地址访问。
 
-## 导入自己的词表
+## 通过命令行维护词表
 
-iPad 操作步骤、PDF 支持范围、UTF-8 TXT/CSV 示例、分组和保存注意事项见[单词文件导入指南](docs/word-list-import.md)。可直接参考 [TXT 样例](public/examples/words.txt)与 [CSV 样例](public/examples/words.csv)。
+网页导入已停用，网页使用内置或命令行发布的词表。TXT/CSV/PDF 的命令行操作、格式和分组限制见[单词文件导入指南](docs/word-list-import.md)。可直接参考 [TXT 样例](public/examples/words.txt)与 [CSV 样例](public/examples/words.csv)。
 
-点击“导入”，选择文件，核对可编辑预览后点击“确认使用词表”。解析失败或取消时，当前词表保持不变。确认导入会替换当前词表，并清空上一份词表的错词记录；页面有明确提示。
+先预览，检查分组和待生成数量，再生成音频并发布。当前 Luna 精品配置可沿用：
+
+```bash
+npm run import:aliyun -- --quality premium --voice Luna_v3.1 --input words.csv
+npm run import:aliyun -- --quality premium --voice Luna_v3.1 --input words.csv --execute
+npm run deploy
+```
 
 支持以下格式：
 
-- **文字版中英词表 PDF**：支持随项目附带的当前词表（`public/examples/外研社7年级英语听写分组.pdf`）及相似排版。保留单词、短语、中文和留白分组，忽略空白页。不同排版可能需要在预览中修正；扫描件需要先做 OCR。只有编号和音频入口的 PDF 不能提供词表。
+- **文字版中英词表 PDF**：支持随项目附带的当前词表（`public/examples/外研社7年级英语听写分组.pdf`）及相似排版。保留单词、短语、中文和留白分组，忽略空白页。不同排版可能识别不准，必要时整理为 TXT/CSV；扫描件需要先做 OCR。只有编号和音频入口的 PDF 不能提供词表。
 - **TXT**：一行一个英文单词或短语，可在英文后以 Tab 分隔中文；空行分组。只有英文也可以。
 - **CSV**：列顺序为英文、中文、可选组号；支持 `english,chinese,group` 表头，中文中的逗号用双引号包住。
 
@@ -76,7 +82,7 @@ primary school,小学,1
 point out,"指出,指明",2
 ```
 
-单组超过 15 项时导入预览默认按 15 项分组，也可点击“每 15 项重新分组”或手动改空行。每份文件最多 20 MB、100 页、2000 项。文件仅在浏览器内读取，不上传到服务器。
+单组超过 15 项时命令按 15 项分组。每份文件最多 20 MB、100 页、2000 项。命令在维护电脑读取文件，显式执行时向阿里云发送英文词项；部署只上传生成的网站和音频。
 
 ## 英音、错词与记录
 
@@ -86,7 +92,7 @@ point out,"指出,指明",2
 
 个人学习还可[使用阿里云生成本地英音](docs/aliyun-audio.md)。已有 `npm run audio:aliyun` 只生成声音；新命令 `npm run import:aliyun -- --input 词表.txt` 先预览 TXT、CSV 或文字版中英 PDF，配置本地凭证后加 `--execute` 才生成音频并发布词表。本机网页刷新后自动显示新词表、选中「阿里云英音」；练习时无需调用 API。私人音频不采用上述开放许可。
 
-省略 `--input`：`npm run import:aliyun -- --execute` 补齐当前已发布词表缺失或损坏的阿里云音频，并复用已有音色、语速和有效文件。尚未发布词表时使用内置词表；网页手动导入的浏览器本地词表仍需首次通过 `--input` 指定文件。不加 `--execute` 仅预览。
+省略 `--input`：`npm run import:aliyun -- --execute` 补齐当前已发布词表缺失或损坏的阿里云音频，并复用已有音色、语速和有效文件。尚未发布词表时使用内置词表；历史浏览器本地词表仍需首次通过 `--input` 指定文件。不加 `--execute` 仅预览。
 
 精品英音使用 `npm run import:aliyun -- --quality premium` 预览，填好 `.env.local` 中北京百炼的 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_WORKSPACE_ID` 后加 `--execute` 下载并发布。默认 `qwen-audio-3.1-tts-flash` / `Emily_v3.1`，也支持 Eric、Luna、Luca 的精品英音；`--input` 仍可接 TXT/CSV/PDF。精品文件单独保存，网页可选择标准或精品英音，同一词表切换品质保留错词。详见[精品英音接入](docs/aliyun-audio.md#精品英音百炼)。
 
@@ -110,6 +116,6 @@ npm run format:check
 
 Linux 上 Playwright 的 WebKit 还需要系统依赖，按 `npx playwright install-deps webkit` 的指引准备。仅跑 Chromium 可使用 `npm run test:browser -- --project=chromium-ipad`。测试环境也可通过 `IPAD_WEBKIT_EXECUTABLE` 指定兼容的 WebKit 启动程序。
 
-test:deploy:python 额外需要 Python 3.9+，验证内置 HTTP 服务、真实 PDF 导入和 current 切换；不使用 Python 托管时可跳过此项。部署脚本测试包含实际本地构建和 Bash 临时目录验证，执行 npm test 时不要同时发布或运行其他构建。
+test:deploy:python 额外需要 Python 3.9+，验证内置 HTTP 服务、音频播放、网页导入已停用和 current 切换；不使用 Python 托管时可跳过此项。部署脚本测试包含实际本地构建和 Bash 临时目录验证，执行 npm test 时不要同时发布或运行其他构建。
 
-浏览器测试在 iPad 尺寸下验证真实预置音频播放与连续推进，并用可控系统语音验证备用声音；另验证页面、取消、保存和实际 PDF 解析；不能代替真实 iPad 的声音质量与后台行为测试。实现和验证边界见 [设计说明](docs/design-contracts.md) 与 [验证记录](docs/verification.md)。
+浏览器测试在 iPad 尺寸下验证真实预置音频播放与连续推进，并用可控系统语音验证备用声音；另验证导入入口已移除、历史词表与错词恢复。真实 PDF 解析保留在解析模块和命令行测试中；不能代替真实 iPad 的声音质量与后台行为测试。实现和验证边界见 [设计说明](docs/design-contracts.md) 与 [验证记录](docs/verification.md)。

@@ -20,8 +20,7 @@
     <main class="workspace">
       <aside class="sidebar">
         <div class="sidebar-heading">
-          <span class="eyebrow">你的词表</span
-          ><button id="import-open" class="small-button">＋ 导入</button>
+          <span class="eyebrow">你的词表</span>
         </div>
         <h1 id="source-title">外研社七年级英语</h1>
         <p id="source-summary" class="muted"></p>
@@ -158,57 +157,6 @@
     <footer>
       每次一组，每天一点。<span>设置与错词保存在当前浏览器。</span>
     </footer>
-    <dialog id="import-dialog">
-      <div class="dialog-heading">
-        <div>
-          <span class="eyebrow">换一份词表，继续练习</span>
-          <h2>导入单词列表</h2>
-        </div>
-        <button id="import-close" class="icon-button" aria-label="关闭导入">
-          ×
-        </button>
-      </div>
-      <label class="file-drop" for="word-file"
-        ><span>＋ 选择单词文件</span
-        ><small>文字版 PDF、TXT 或 CSV · 最大 20 MB</small
-        ><input id="word-file" type="file" accept=".pdf,.txt,.csv"
-      /></label>
-      <p id="import-status" class="muted" role="status">
-        支持当前中英词表 PDF。扫描图片需要先做 OCR。
-      </p>
-      <label for="import-title">词表名称</label
-      ><input
-        id="import-title"
-        type="text"
-        maxlength="80"
-        placeholder="例如：本周英语单词"
-      />
-      <div class="preview-heading">
-        <label for="import-text">预览与修正</label
-        ><button id="regroup-button" class="small-button">
-          每 15 项重新分组
-        </button>
-      </div>
-      <p class="muted">
-        每行一项：英文 + Tab + 中文。只有英文也可以；用空行分组。
-      </p>
-      <textarea
-        id="import-text"
-        rows="12"
-        spellcheck="false"
-        placeholder="hello&#9;你好&#10;primary school&#9;小学"
-      ></textarea>
-      <p id="import-summary" class="preview-summary" role="status"></p>
-      <p class="import-note">
-        确认后切换练习词表，并清空上一份练习的错词。新词会追加进原词表，已经有的单词不重复。取消不会修改。
-      </p>
-      <div class="dialog-actions">
-        <button id="import-cancel" class="secondary-button">取消</button
-        ><button id="import-confirm" class="primary-button" disabled>
-          确认使用词表
-        </button>
-      </div>
-    </dialog>
     <dialog id="glossary-dialog" class="glossary-dialog">
       <div class="dialog-heading">
         <div>

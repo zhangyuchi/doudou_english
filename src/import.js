@@ -154,46 +154,6 @@ export function extractPdfGroups(pages) {
   return validateGroups(groups);
 }
 
-/** Read a local file only; worker and fonts are bundled with the static site. */
-export async function parseFile(file) {
-  if (file.size > 20 * 1024 * 1024)
-    throw new Error("文件超过 20 MB，请拆分后导入。");
-  const extension = file.name.split(".").at(-1).toLowerCase();
-  if (extension === "txt") return parseEditable(await file.text());
-  if (extension === "csv") return parseCsv(await file.text());
-  if (extension !== "pdf") throw new Error("请选择 PDF、TXT 或 CSV 文件。");
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).href;
-  const base = import.meta.env.BASE_URL;
-  const task = pdfjs.getDocument({
-    data: new Uint8Array(await file.arrayBuffer()),
-    cMapUrl: `${base}pdfjs/cmaps/`,
-    cMapPacked: true,
-    standardFontDataUrl: `${base}pdfjs/standard_fonts/`,
-    wasmUrl: `${base}pdfjs/wasm/`,
-  });
-  try {
-    const doc = await task.promise;
-    if (doc.numPages > 100)
-      throw new Error("每次最多读取 100 页，请拆分文件。");
-    const pages = [];
-    for (let i = 1; i <= doc.numPages; i++)
-      pages.push((await (await doc.getPage(i)).getTextContent()).items);
-    return extractPdfGroups(pages);
-  } catch (error) {
-    if (/英文词表/.test(error.message))
-      throw new Error(
-        "未找到文字版中英词表。扫描件需要 OCR；只有编号和音频的 PDF 不能作为词表。",
-      );
-    throw new Error(`PDF 导入失败：${error.message}`);
-  } finally {
-    await task.destroy();
-  }
-}
-
 /** Regroup an existing list without changing its order or item content. */
 export function regroup(groups, size = 15) {
   const items = groups.flatMap((g) => g.items);

@@ -16,6 +16,7 @@ import { createServer } from "node:http";
 import { chromium } from "@playwright/test";
 import { generateAudio } from "../scripts/generate-aliyun-audio.mjs";
 import { importAliyunList } from "../scripts/import-aliyun-list.mjs";
+import { makeSource } from "../src/import.js";
 
 for (const quality of ["standard", "premium"])
   test(
@@ -146,9 +147,30 @@ for (const quality of ["standard", "premium"])
       );
       await page.locator("#play-toggle").click();
       await page.getByRole("button", { name: "① 复习单词" }).click();
-      await page.locator("#import-open").click();
-      await page.locator("#import-text").fill("apple\t苹果\nmissing\t缺少");
-      await page.locator("#import-confirm").click();
+      assert.equal(await page.locator("#import-open").count(), 0);
+      assert.equal(await page.locator("#import-dialog").count(), 0);
+      const legacySource = makeSource(
+        [
+          {
+            items: [
+              { english: "apple", chinese: "苹果" },
+              { english: "missing", chinese: "缺少" },
+            ],
+          },
+        ],
+        "旧词表",
+        "legacy-coverage",
+      );
+      await page.evaluate((source) => {
+        const snapshot = JSON.parse(localStorage.getItem("ipad-dictation:v1"));
+        snapshot.source = source;
+        snapshot.mistakes = [];
+        localStorage.setItem("ipad-dictation:v1", JSON.stringify(snapshot));
+      }, legacySource);
+      await page.reload();
+      await page
+        .locator(`#voice-select option[value='${voiceURI}']`)
+        .waitFor({ state: "attached" });
       assert.match(
         await page.locator("#voice-help").textContent(),
         /阿里云.*1 \/ 2/,

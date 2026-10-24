@@ -9,13 +9,6 @@ import {
   validateAliyunManifest,
   validatePublishedSource,
 } from "./aliyun-audio.js";
-import {
-  parseFile,
-  parseEditable,
-  toEditable,
-  regroup,
-  makeSource,
-} from "./import.js";
 import { mergeGlossary } from "./glossary.js";
 import { loadSnapshot, saveSnapshot } from "./storage.js";
 
@@ -32,8 +25,7 @@ let protectedStorage = loaded.protected;
 let groupIndex = 0,
   mode = "review",
   wrongMode = false,
-  voices = [bundledVoice],
-  importGeneration = 0;
+  voices = [bundledVoice];
 let queue = [];
 const running = (state) =>
   ["speaking", "repeat-gap", "writing-gap"].includes(state.phase);
@@ -483,49 +475,6 @@ function changeSetting(key, value) {
   message("");
 }
 
-/** Parse a file into a preview without ever replacing the active source on failure. */
-async function importFile(file) {
-  if (!file) return;
-  const generation = ++importGeneration;
-  $("import-status").textContent = "正在读取文件，请稍候…";
-  $("import-confirm").disabled = true;
-  try {
-    let groups = await parseFile(file);
-    if (generation !== importGeneration) return;
-    if (groups.length === 1 && groups[0].items.length > 15)
-      groups = regroup(groups);
-    $("import-title").value = file.name.replace(/\.[^.]+$/, "");
-    $("import-text").value = toEditable(groups);
-    $("import-status").textContent =
-      "文件已读取。请核对单词、释义和分组，修正后再确认。";
-    validatePreview();
-  } catch (error) {
-    if (generation === importGeneration) {
-      $("import-status").textContent = error.message;
-      $("import-summary").textContent = "当前词表保持不变。";
-    }
-  }
-}
-
-/** Check editable text before enabling the explicit source replacement action. */
-function validatePreview() {
-  try {
-    const groups = parseEditable($("import-text").value);
-    $("import-summary").textContent =
-      `${groups.length} 组 · ${groups.flatMap((g) => g.items).length} 项 · 每组 ${groups.map((g) => g.items.length).join(" / ")} 项`;
-    $("import-confirm").disabled = false;
-  } catch (error) {
-    $("import-summary").textContent = error.message;
-    $("import-confirm").disabled = true;
-  }
-}
-
-/** Close and invalidate pending imports so late results cannot reopen or mutate a preview. */
-function closeImport() {
-  importGeneration++;
-  $("import-dialog").close();
-}
-
 /** Replace a confirmed source and its mistakes together; write failures stay visible. */
 function useSource(source, { accumulate = false } = {}) {
   player.stop();
@@ -647,58 +596,6 @@ $("glossary-close").onclick = () => $("glossary-dialog").close();
 $("storage-recover").onclick = () => {
   protectedStorage = false;
   persist();
-};
-$("import-open").onclick = () => {
-  player.stop();
-  importGeneration++;
-  $("word-file").value = "";
-  $("import-title").value = "";
-  $("import-text").value = "";
-  $("import-summary").textContent = "";
-  $("import-status").textContent =
-    "支持当前中英词表 PDF。也可以在下方直接粘贴单词。";
-  $("import-confirm").disabled = true;
-  $("import-dialog").showModal();
-};
-$("word-file").onchange = (e) => importFile(e.target.files[0]);
-$("import-text").oninput = validatePreview;
-$("import-close").onclick = closeImport;
-$("import-cancel").onclick = closeImport;
-$("import-dialog").addEventListener("cancel", () => {
-  importGeneration++;
-});
-$("regroup-button").onclick = () => {
-  try {
-    $("import-text").value = toEditable(
-      regroup(parseEditable($("import-text").value)),
-    );
-    validatePreview();
-  } catch (error) {
-    $("import-summary").textContent = error.message;
-  }
-};
-$("import-confirm").onclick = () => {
-  try {
-    const groups = parseEditable($("import-text").value);
-    const id = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const before = snapshot.glossary.groups.flatMap(
-      (group) => group.items,
-    ).length;
-    useSource(
-      makeSource(groups, $("import-title").value.trim() || "我的词表", id),
-      { accumulate: true },
-    );
-    const added =
-      snapshot.glossary.groups.flatMap((group) => group.items).length - before;
-    closeImport();
-    message(
-      added
-        ? `已切换练习词表，${added} 个新词已追加到原词表。`
-        : "已切换练习词表。这些单词原词表里已经有了。",
-    );
-  } catch (error) {
-    $("import-summary").textContent = error.message;
-  }
 };
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) player.pause();

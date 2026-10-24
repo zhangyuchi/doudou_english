@@ -1,11 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 import { makeSource } from "../src/import.js";
-
-const pdf = fileURLToPath(
-  new URL("../public/examples/外研社7年级英语听写分组.pdf", import.meta.url),
-);
+import { defaultSnapshot } from "../src/storage.js";
+import { mergeGlossary } from "../src/glossary.js";
+import { builtinSource } from "../src/words.js";
 
 // Private files on the developer's machine must not change test fixtures.
 test.beforeEach(async ({ page }) => {
@@ -48,7 +46,7 @@ async function mockVoices(page, british = true) {
   }, british);
 }
 
-test("original word list opens as a table of headwords and phrase extensions", async ({
+test("glossary shows headwords, phonetics, extensions and accumulates saved lists", async ({
   page,
 }) => {
   await mockVoices(page);
@@ -76,12 +74,43 @@ test("original word list opens as a table of headwords and phrase extensions", a
   await page.getByRole("button", { name: "关闭原词表" }).click();
   await expect(dialog).toBeHidden();
 
-  await page.locator("#import-open").click();
-  await page.locator("#import-title").fill("本周新词");
-  await page
-    .locator("#import-text")
-    .fill("apple\t苹果\ngreen apple\t青苹果\n\nbook\t书");
-  await page.locator("#import-confirm").click();
+  const firstBatch = makeSource(
+    [
+      {
+        items: [
+          { english: "apple", chinese: "苹果" },
+          { english: "green apple", chinese: "青苹果" },
+        ],
+      },
+      { items: [{ english: "book", chinese: "书" }] },
+    ],
+    "本周新词",
+    "legacy-batch-one",
+  );
+  const secondBatch = makeSource(
+    [
+      {
+        items: [
+          { english: "pear", chinese: "梨" },
+          { english: "apple", chinese: "苹果" },
+        ],
+      },
+    ],
+    "再来一批",
+    "legacy-batch-two",
+  );
+  const firstSnapshot = defaultSnapshot(builtinSource);
+  firstSnapshot.source = firstBatch;
+  firstSnapshot.glossary = mergeGlossary(firstSnapshot.glossary, firstBatch);
+  const saveAndReload = async (snapshot) => {
+    await page.evaluate(
+      (value) =>
+        localStorage.setItem("ipad-dictation:v1", JSON.stringify(value)),
+      snapshot,
+    );
+    await page.reload();
+  };
+  await saveAndReload(firstSnapshot);
   await expect(page.locator("#source-title")).toHaveText("本周新词");
   await page.getByRole("button", { name: "查看原词表" }).click();
   await expect(dialog.locator("#glossary-eyebrow")).toHaveText("完整词表");
@@ -100,10 +129,13 @@ test("original word list opens as a table of headwords and phrase extensions", a
   );
   await page.getByRole("button", { name: "关闭原词表" }).click();
 
-  await page.locator("#import-open").click();
-  await page.locator("#import-title").fill("再来一批");
-  await page.locator("#import-text").fill("pear\t梨\napple\t苹果");
-  await page.locator("#import-confirm").click();
+  const secondSnapshot = {
+    ...firstSnapshot,
+    source: secondBatch,
+    glossary: mergeGlossary(firstSnapshot.glossary, secondBatch),
+    mistakes: [],
+  };
+  await saveAndReload(secondSnapshot);
   await expect(page.locator("#source-title")).toHaveText("再来一批");
   await page.getByRole("button", { name: "查看原词表" }).click();
   await expect(dialog.locator("tbody tr")).toHaveCount(165);
@@ -191,42 +223,51 @@ test("iPad layout, English voice, hidden answers, pause and selected-item start"
   ).toBeTruthy();
 });
 
-test("the provided PDF imports in browser and cancel preserves the active list", async ({
+test("web import controls are absent while playback and mistakes remain available", async ({
   page,
 }) => {
   await mockVoices(page);
   await page.goto("/");
-  await page.locator("#import-open").click();
-  await page.locator("#word-file").setInputFiles(pdf);
-  await expect(page.locator("#import-summary")).toContainText(
-    "11 组 · 161 项",
-    { timeout: 30000 },
-  );
-  await expect(page.locator("#import-text")).toHaveValue(/point out/);
-  await page.locator("#import-cancel").click();
+  await expect(page.locator("#import-open")).toHaveCount(0);
+  await expect(page.locator("#import-dialog")).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
   await expect(page.locator("#source-title")).toHaveText("外研社七年级英语");
-  await page.locator("#import-open").click();
-  await page.locator("#word-file").setInputFiles(pdf);
-  await expect(page.locator("#import-confirm")).toBeEnabled({ timeout: 30000 });
-  await page.locator("#import-title").fill("我的 PDF 词表");
-  await page.locator("#import-confirm").click();
-  await expect(page.locator("#source-title")).toHaveText("我的 PDF 词表");
   await expect(page.locator("#group-list button")).toHaveCount(11);
+  await page.locator("#voice-select").selectOption("uk");
+  await page.getByRole("button", { name: "朗读 without", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__spoken?.at(-1).text))
+    .toBe("without");
+  await page.getByRole("button", { name: "③ 核对答案" }).click();
+  await page
+    .getByRole("checkbox", { name: "标记错词 without", exact: true })
+    .check();
   await page.reload();
-  await expect(page.locator("#source-title")).toHaveText("我的 PDF 词表");
+  await expect(page.locator("#mistakes-count")).toHaveText("1");
 });
 
-test("imported text is safe, mistakes survive refresh and wrong words can be removed", async ({
+test("saved custom text is safe, mistakes survive refresh and wrong words can be removed", async ({
   page,
 }) => {
   await mockVoices(page);
+  const source = makeSource(
+    [
+      {
+        items: [
+          { english: "hello", chinese: "<img src=x onerror=alert(1)>" },
+          { english: "primary school", chinese: "小学" },
+        ],
+      },
+    ],
+    "新词表",
+    "legacy-custom",
+  );
+  await page.addInitScript((snapshot) => {
+    if (!localStorage.getItem("ipad-dictation:v1"))
+      localStorage.setItem("ipad-dictation:v1", JSON.stringify(snapshot));
+  }, defaultSnapshot(source));
   await page.goto("/");
-  await page.locator("#import-open").click();
-  await page.locator("#import-title").fill("新词表");
-  await page
-    .locator("#import-text")
-    .fill("hello\t<img src=x onerror=alert(1)>\nprimary school\t小学");
-  await page.locator("#import-confirm").click();
+  await expect(page.locator("#source-title")).toHaveText("新词表");
   await expect(page.locator("#review-list")).toContainText(
     "<img src=x onerror=alert(1)>",
   );
@@ -365,16 +406,26 @@ test("preview preserves selected item and repeat settings, voice refresh preserv
   await expect.poll(() => page.evaluate(() => window.__spoken?.length)).toBe(3);
 });
 
-test("unknown imported audio blocks a session but allows explicit system British speech", async ({
+test("unknown saved audio blocks a session but allows explicit system British speech", async ({
   page,
 }) => {
   await mockVoices(page);
+  const source = makeSource(
+    [
+      {
+        items: [
+          { english: "without", chinese: "没有" },
+          { english: "new unfamiliar phrase", chinese: "新词" },
+        ],
+      },
+    ],
+    "旧词表",
+    "legacy-missing",
+  );
+  await page.addInitScript((snapshot) => {
+    localStorage.setItem("ipad-dictation:v1", JSON.stringify(snapshot));
+  }, defaultSnapshot(source));
   await page.goto("/");
-  await page.locator("#import-open").click();
-  await page
-    .locator("#import-text")
-    .fill("without\t没有\nnew unfamiliar phrase\t新词");
-  await page.locator("#import-confirm").click();
   await expect(page.locator("#voice-help")).toContainText("1 / 2");
   await expect(page.locator("#review-start")).toBeDisabled();
   await expect(

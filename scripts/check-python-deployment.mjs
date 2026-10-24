@@ -93,18 +93,9 @@ try {
     "11 组 · 161 个听写项",
   );
   await checkAudio(page);
-  await page.locator("#import-open").click();
-  await page
-    .locator("#word-file")
-    .setInputFiles("public/examples/外研社7年级英语听写分组.pdf");
-  await page.waitForFunction(
-    () =>
-      document
-        .getElementById("import-summary")
-        .textContent.includes("11 组 · 161 项"),
-    undefined,
-    { timeout: 30000 },
-  );
+  assert.equal(await page.locator("#import-open").count(), 0);
+  assert.equal(await page.locator("#import-dialog").count(), 0);
+  assert.equal(await page.locator('input[type="file"]').count(), 0);
   assert.deepEqual(errors, []);
   await symlink("releases/two", join(temp, "next"));
   await rename(join(temp, "next"), current);
@@ -116,7 +107,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "Python HTTP serving: 161 decoded audio files, real playback, PDF/worker import and current switching without restart passed.",
+    "Python HTTP serving: 161 decoded audio files, real playback, disabled web import and current switching without restart passed.",
   );
 } finally {
   await browser?.close();
