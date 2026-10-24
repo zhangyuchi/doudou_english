@@ -216,7 +216,14 @@ async function main() {
   const temp = await mkdtemp(join(tmpdir(), "doudou-deploy-"));
   try {
     const archive = join(temp, "site.tar.gz");
-    run("tar", ["-czf", archive, "-C", dist, "."]);
+    run("tar", [
+      "-czf",
+      archive,
+      "--exclude=*/audio/aliyun/.voice-backups",
+      "-C",
+      dist,
+      ".",
+    ]);
     const version = `${new Date().toISOString().replace(/[-:.]/g, "")}-${randomBytes(4).toString("hex")}`;
     console.log(`发布版本 ${version} 到 ${config.host}:${config.remoteDir}`);
     run(

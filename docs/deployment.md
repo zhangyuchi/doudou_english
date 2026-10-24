@@ -77,7 +77,7 @@ npm run deploy -- --dry-run
 npm run deploy
 ```
 
-每次发布都会重新执行 npm run build，完整上传 dist（包括 PDF worker、字体和样例），成功解包后切换 current。成功输出类似 `CURRENT 20260928T...Z-...`。不上传源码、node_modules 或本地部署配置。同一电脑项目目录不要同时运行多个发布、构建或 npm test；远端发布锁保护服务器切换，不代替本地构建排他性。
+每次发布都会重新执行 npm run build，完整上传 dist（包括预置音频、阿里云音频、字体和样例，但不含本地音色备份），成功解包后切换 current。成功输出类似 `CURRENT 20260928T...Z-...`。不上传源码、node_modules 或本地部署配置。同一电脑项目目录不要同时运行多个发布、构建或 npm test；远端发布锁保护服务器切换，不代替本地构建排他性。
 
 远端布局：
 
